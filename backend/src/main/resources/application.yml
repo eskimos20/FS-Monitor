@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: fs-monitor-backend
+  
+  datasource:
+    url: jdbc:h2:file:./data/fsmonitor;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+    
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        
+  sql:
+    init:
+      mode: never
+        
+  mail:
+    host: localhost
+    port: 587
+    username: your-email@example.com
+    password: your-password
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  port: 8080
+
+jwt:
+  secret: fs-monitor-secret-key-very-long-and-secure-for-hs512-algorithm-requirements-must-be-at-least-64-bytes-long
+  expiration: 86400000 # 24 hours
+
+logging:
+  level:
+    com.fsmonitor.app: INFO
+    org.springframework.security: WARN
+    org.hibernate: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    org.springframework.web: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
