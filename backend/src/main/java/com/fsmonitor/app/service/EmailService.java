@@ -42,11 +42,21 @@ public class EmailService {
                 logger.info("Using SMTP without authentication");
             }
             
-            // SMTP properties
+            // SMTP properties - simple configuration for mail relay without auth
             Properties props = mailSender.getJavaMailProperties();
-            props.put("mail.smtp.auth", config.getUsername() != null && !config.getUsername().trim().isEmpty() ? "true" : "false");
-            props.put("mail.smtp.starttls.enable", "true"); // Enable STARTTLS by default
-            props.put("mail.smtp.starttls.required", "false"); // Don't require STARTTLS
+            
+            // Only enable auth if username is provided
+            if (config.getUsername() != null && !config.getUsername().trim().isEmpty()) {
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.smtp.starttls.required", "false");
+                props.put("mail.smtp.ssl.trust", "*");
+                props.put("mail.smtp.ssl.checkserveridentity", "false");
+            } else {
+                // No auth - plain SMTP relay (like port 25)
+                props.put("mail.smtp.auth", "false");
+            }
+            
             props.put("mail.smtp.connectiontimeout", "10000");
             props.put("mail.smtp.timeout", "10000");
             props.put("mail.smtp.writetimeout", "10000");
