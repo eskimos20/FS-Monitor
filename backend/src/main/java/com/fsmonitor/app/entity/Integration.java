@@ -91,9 +91,15 @@ public class Integration {
     @CollectionTable(name = "integration_schedule")
     private Set<ScheduleDay> scheduleDays;
 
-    public Integration() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     // Getters and Setters

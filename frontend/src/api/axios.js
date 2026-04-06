@@ -58,4 +58,26 @@ export const mailConfigAPI = {
   delete: (id) => api.delete(`/mail-config/${id}`)
 };
 
+export const systemAPI = {
+  getStats: () => api.get('/system/stats')
+};
+
+export const serviceAPI = {
+  testConnection: (data) => api.post('/services/test-connection', data),
+  testCredentials: (data) => api.post('/services/test-credentials', data)
+};
+
+export const logConfigAPI = {
+  getAll: () => api.get('/log-configs'),
+  getById: (id) => api.get(`/log-configs/${id}`),
+  create: (data) => api.post('/log-configs', data),
+  update: (id, data) => api.put(`/log-configs/${id}`, data),
+  delete: (id) => api.delete(`/log-configs/${id}`),
+  toggle: (id) => api.post(`/log-configs/${id}/toggle`),
+  search: (id) => api.get(`/log-configs/${id}/search`),
+  getStats: () => api.get('/log-configs/stats'),
+  getRecentMatches: (hours = 24) => api.get(`/log-configs/matches/recent?hours=${hours}`),
+  getMatchesForConfig: (id) => api.get(`/log-configs/${id}/matches`)
+};
+
 export default api;

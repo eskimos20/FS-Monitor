@@ -3,11 +3,14 @@ package com.fsmonitor.app.controller;
 import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.entity.ServiceType;
 import com.fsmonitor.app.service.ServiceMonitoringService;
+import com.fsmonitor.app.service.ConnectionTestService;
+import com.fsmonitor.app.service.CredentialsTestService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/services")
@@ -15,6 +18,12 @@ public class ServiceController {
 
     @Autowired
     private ServiceMonitoringService serviceMonitoringService;
+
+    @Autowired
+    private ConnectionTestService connectionTestService;
+
+    @Autowired
+    private CredentialsTestService credentialsTestService;
 
     @GetMapping
     public ResponseEntity<List<Service>> getAllServices() {
@@ -75,6 +84,34 @@ public class ServiceController {
 
         serviceMonitoringService.deleteService(id);
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/test-connection")
+    public ResponseEntity<Map<String, Object>> testConnection(@RequestBody Map<String, Object> request) {
+        String host = (String) request.get("host");
+        Integer port = request.get("port") != null ? ((Number) request.get("port")).intValue() : null;
+        String path = (String) request.get("path");
+        
+        if (host == null || host.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Host is required"));
+        }
+        
+        Map<String, Object> result = connectionTestService.testConnection(host, port, path);
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/test-credentials")
+    public ResponseEntity<Map<String, Object>> testCredentials(@RequestBody Service service) {
+        if (service.getHost() == null || service.getHost().trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Host is required"));
+        }
+        
+        if (!Boolean.TRUE.equals(service.getUseCredentials()) || service.getUsername() == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Credentials are required"));
+        }
+        
+        Map<String, Object> result = credentialsTestService.testCredentials(service);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/types")

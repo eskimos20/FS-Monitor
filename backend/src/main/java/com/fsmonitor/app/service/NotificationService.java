@@ -1,6 +1,5 @@
 package com.fsmonitor.app.service;
 
-import com.fsmonitor.app.entity.MailConfig;
 import com.fsmonitor.app.entity.NotificationLog;
 import com.fsmonitor.app.entity.NotificationType;
 import com.fsmonitor.app.repository.NotificationLogRepository;
@@ -47,10 +46,15 @@ public class NotificationService {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
 
-        MailConfig config = mailConfigService.getCurrentMailConfig()
-            .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
+        boolean emailSent = false;
+        try {
+            mailConfigService.getCurrentMailConfig()
+                .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
 
-        boolean emailSent = emailService.sendEmail(subject, body, config.getUsername(), config.getPassword());
+            emailSent = emailService.sendEmail(subject, body);
+        } catch (Exception e) {
+            logger.warn("Could not send email notification for integration {}: {}", integrationName, e.getMessage());
+        }
         
         if (emailSent) {
             // Log the notification
@@ -63,7 +67,8 @@ public class NotificationService {
             logger.info("Integration {} inactive notification sent", integrationName);
             return true;
         } else {
-            logger.error("Failed to send integration {} notification", integrationName);
+            logger.warn("Failed to send integration {} notification (no mail config)", integrationName);
+            // Don't fail the entire transaction if email fails
             return false;
         }
     }
@@ -87,10 +92,10 @@ public class NotificationService {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
 
-        MailConfig config = mailConfigService.getCurrentMailConfig()
+        mailConfigService.getCurrentMailConfig()
             .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
 
-        boolean emailSent = emailService.sendEmail(subject, body, config.getUsername(), config.getPassword());
+        boolean emailSent = emailService.sendEmail(subject, body);
         
         if (emailSent) {
             // Log the notification

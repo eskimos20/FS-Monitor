@@ -150,14 +150,16 @@ public class FileMonitoringService {
     }
 
     private File findLatestFile(File directory, Set<FileType> monitoredFileTypes) {
+        logger.debug("Looking for latest file in directory: {}", directory.getAbsolutePath());
+        
         if (monitoredFileTypes == null || monitoredFileTypes.isEmpty()) {
-            // If no specific file types, monitor all files
+            logger.debug("No specific file types configured, monitoring all files");
             return findLatestFileAllTypes(directory);
         }
         
         Set<String> extensions = monitoredFileTypes.stream()
             .map(FileType::getExtension)
-            .map(String::toLowerCase)  // Convert to lowercase for consistent matching
+            .map(String::toLowerCase)
             .collect(Collectors.toSet());
         
         logger.debug("Looking for files with extensions: {}", extensions);
@@ -170,6 +172,7 @@ public class FileMonitoringService {
     }
 
     private File findLatestFileAllTypes(File directory) {
+        logger.debug("Scanning all files in directory: {}", directory.getAbsolutePath());
         File latestFile = null;
         long latestTime = 0;
         
@@ -180,20 +183,29 @@ public class FileMonitoringService {
                 .map(Path::toFile)
                 .collect(Collectors.toList());
             
+            logger.debug("Found {} total files in directory", files.size());
+            
             for (File file : files) {
                 if (file.lastModified() > latestTime) {
                     latestTime = file.lastModified();
                     latestFile = file;
                 }
             }
+            
+            if (latestFile != null) {
+                logger.debug("Latest file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
+            } else {
+                logger.debug("No files found in directory");
+            }
         } catch (IOException e) {
-            logger.error("Error walking directory: " + directory.getAbsolutePath(), e);
+            logger.error("Error walking directory: {}", directory.getAbsolutePath(), e);
         }
         
         return latestFile;
     }
 
     private File findLatestFileByExtensions(File directory, Set<String> extensions) {
+        logger.debug("Scanning files with extensions {} in directory: {}", extensions, directory.getAbsolutePath());
         File latestFile = null;
         long latestTime = 0;
         
@@ -205,14 +217,22 @@ public class FileMonitoringService {
                 .filter(file -> hasMatchingExtension(file, extensions))
                 .collect(Collectors.toList());
             
+            logger.debug("Found {} matching files", files.size());
+            
             for (File file : files) {
                 if (file.lastModified() > latestTime) {
                     latestTime = file.lastModified();
                     latestFile = file;
                 }
             }
+            
+            if (latestFile != null) {
+                logger.debug("Latest matching file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
+            } else {
+                logger.debug("No matching files found");
+            }
         } catch (IOException e) {
-            logger.error("Error walking directory: " + directory.getAbsolutePath(), e);
+            logger.error("Error walking directory: {}", directory.getAbsolutePath(), e);
         }
         
         return latestFile;

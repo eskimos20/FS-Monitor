@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/DashboardPage';
 import Settings from './pages/SettingsPage';
+import LogConfigsPage from './pages/settings/LogConfigsPage';
 import Layout from './components/Layout';
 
 const ProtectedRoute = ({ children }) => {
@@ -62,6 +63,7 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="settings/log-configs" element={<LogConfigsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

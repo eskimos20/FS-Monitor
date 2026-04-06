@@ -49,7 +49,7 @@ const Login = () => {
             Sign in to FS-Monitor
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            File System Monitor
+            File Service Monitor
           </p>
         </div>
         
@@ -121,9 +121,6 @@ const Login = () => {
             </button>
           </div>
 
-          <div className="text-center text-sm text-gray-500">
-            Default credentials: <span className="font-mono bg-gray-100 px-2 py-1 rounded">admin / password</span>
-          </div>
         </form>
       </div>
     </div>

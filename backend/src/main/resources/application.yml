@@ -39,7 +39,12 @@ spring:
             enable: true
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
+
+# Custom port configuration
+port-config:
+  backend-port: ${SERVER_PORT:8080}
+  frontend-port: ${FRONTEND_PORT:3000}
 
 jwt:
   secret: fs-monitor-secret-key-very-long-and-secure-for-hs512-algorithm-requirements-must-be-at-least-64-bytes-long

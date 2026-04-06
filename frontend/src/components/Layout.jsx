@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
 import { 
   Home, 
   Settings, 
@@ -11,6 +12,21 @@ import {
 const Layout = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const [version, setVersion] = useState('...');
+
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const response = await fetch('/api/version');
+        const data = await response.json();
+        setVersion(data.version);
+      } catch (error) {
+        console.error('Failed to fetch version:', error);
+        setVersion('1.0.0');
+      }
+    };
+    fetchVersion();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -63,7 +79,10 @@ const Layout = () => {
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="px-6 py-4 flex justify-end items-center">
+          <div className="px-6 py-4 flex justify-between items-center">
+            <div className="text-sm text-gray-500">
+              Version {version}
+            </div>
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <User className="h-5 w-5 text-gray-400" />

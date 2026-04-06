@@ -17,50 +17,55 @@ public class EmailService {
     @Autowired
     private MailConfigService mailConfigService;
 
-    public boolean sendEmail(String subject, String body, String username, String password) {
+    public boolean sendEmail(String subject, String body) {
         logger.info("Attempting to send email to {} with subject: {}", 
-                    mailConfigService.getCurrentMailConfig().map(c -> c.getRecipient()).orElse("unknown"), 
+                    mailConfigService.getCurrentMailConfig().map(c -> c.getToEmail()).orElse("unknown"), 
                     subject);
         
         try {
             MailConfig config = mailConfigService.getCurrentMailConfig()
                 .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
 
-            // Create JavaMailSender with Gmail settings
+            // Create JavaMailSender
             JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
             
             // SMTP server settings
-            mailSender.setHost(config.getServer());
+            mailSender.setHost(config.getHost());
             mailSender.setPort(config.getPort());
             
-            // Authentication
-            mailSender.setUsername(username);
-            mailSender.setPassword(password);
+            // Authentication - only if username is provided
+            if (config.getUsername() != null && !config.getUsername().trim().isEmpty()) {
+                mailSender.setUsername(config.getUsername());
+                mailSender.setPassword(config.getPassword());
+                logger.info("Using SMTP authentication with username: {}", config.getUsername());
+            } else {
+                logger.info("Using SMTP without authentication");
+            }
             
-            // SMTP properties for Gmail
+            // SMTP properties
             Properties props = mailSender.getJavaMailProperties();
-            props.put("mail.smtp.auth", "true");
-            props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.auth", config.getUsername() != null && !config.getUsername().trim().isEmpty() ? "true" : "false");
+            props.put("mail.smtp.starttls.enable", "true"); // Enable STARTTLS by default
+            props.put("mail.smtp.starttls.required", "false"); // Don't require STARTTLS
             props.put("mail.smtp.connectiontimeout", "10000");
             props.put("mail.smtp.timeout", "10000");
             props.put("mail.smtp.writetimeout", "10000");
             
             // Create simple message
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(config.getSender());
-            message.setTo(config.getRecipient());
+            message.setFrom(config.getFromEmail());
+            message.setTo(config.getToEmail());
             message.setSubject(subject);
             message.setText(body);
             
             // Send email
             mailSender.send(message);
             
-            logger.info("Email sent successfully to {}", config.getRecipient());
+            logger.info("Email sent successfully to {}", config.getToEmail());
             return true;
             
         } catch (Exception e) {
-            logger.error("Failed to send email: {}", e.getMessage(), e);
+            logger.warn("Failed to send email: {}", e.getMessage());
             return false;
         }
     }

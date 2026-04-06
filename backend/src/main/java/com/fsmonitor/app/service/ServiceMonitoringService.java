@@ -29,13 +29,24 @@ public class ServiceMonitoringService {
     private final Map<ServiceType, ServiceChecker> checkers;
 
     public ServiceMonitoringService(WebServiceChecker webChecker, PingServiceChecker pingChecker, 
-                                 FtpServiceChecker ftpChecker, SftpServiceChecker sftpChecker, SmbServiceChecker smbChecker) {
+                                 FtpServiceChecker ftpChecker, SftpServiceChecker sftpChecker, 
+                                 SmbServiceChecker smbChecker, TcpServiceChecker tcpChecker) {
         this.checkers = new HashMap<>();
         this.checkers.put(ServiceType.WEB, webChecker);
+        this.checkers.put(ServiceType.HTTPS, webChecker);
         this.checkers.put(ServiceType.PING, pingChecker);
         this.checkers.put(ServiceType.FTP, ftpChecker);
         this.checkers.put(ServiceType.SFTP, sftpChecker);
         this.checkers.put(ServiceType.SMB, smbChecker);
+        this.checkers.put(ServiceType.SSH, tcpChecker);
+        this.checkers.put(ServiceType.MYSQL, tcpChecker);
+        this.checkers.put(ServiceType.POSTGRESQL, tcpChecker);
+        this.checkers.put(ServiceType.MONGODB, tcpChecker);
+        this.checkers.put(ServiceType.REDIS, tcpChecker);
+        this.checkers.put(ServiceType.MSSQL, tcpChecker);
+        this.checkers.put(ServiceType.DNS, tcpChecker);
+        this.checkers.put(ServiceType.LDAP, tcpChecker);
+        this.checkers.put(ServiceType.RDP, tcpChecker);
     }
 
     @jakarta.annotation.PostConstruct
@@ -87,10 +98,27 @@ public class ServiceMonitoringService {
         return !now.isBefore(nextCheck);
     }
 
+    private ServiceChecker getCheckerForService(Service service) {
+        if (service.getType() == ServiceType.CUSTOM && service.getCheckMethod() != null) {
+            // For CUSTOM services, use checkMethod to determine checker
+            switch (service.getCheckMethod()) {
+                case TCP:
+                    return checkers.get(ServiceType.SSH); // Use TCP checker
+                case HTTP:
+                    return checkers.get(ServiceType.WEB); // Use HTTP checker
+                case PING:
+                    return checkers.get(ServiceType.PING); // Use PING checker
+                default:
+                    return checkers.get(ServiceType.SSH); // Default to TCP
+            }
+        }
+        return checkers.get(service.getType());
+    }
+
     private void checkService(Service service, LocalDateTime now) {
         logger.info("Running check for service: {}", service.getName());
         
-        ServiceChecker checker = checkers.get(service.getType());
+        ServiceChecker checker = getCheckerForService(service);
         if (checker == null) {
             logger.warn("No checker found for service type: {}", service.getType());
             service.setStatus(ServiceStatus.UNKNOWN);

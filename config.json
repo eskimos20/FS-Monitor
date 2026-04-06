@@ -1,0 +1,32 @@
+{
+  "development": {
+    "frontend": {
+      "port": 8086,
+      "host": "localhost"
+    },
+    "backend": {
+      "port": 8085,
+      "host": "localhost"
+    }
+  },
+  "production": {
+    "frontend": {
+      "port": 8086,
+      "host": "localhost"
+    },
+    "backend": {
+      "port": 8085,
+      "host": "0.0.0.0"
+    }
+  },
+  "docker": {
+    "frontend": {
+      "port": 8086,
+      "host": "0.0.0.0"
+    },
+    "backend": {
+      "port": 8085,
+      "host": "0.0.0.0"
+    }
+  }
+}

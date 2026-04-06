@@ -1,6 +1,7 @@
 package com.fsmonitor.app.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "mail_configs")
@@ -10,54 +11,56 @@ public class MailConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(nullable = false)
-    private String server;
+    @Column(name = "host", nullable = false)
+    private String host;
     
     @Column(nullable = false)
     private Integer port;
     
-    @Column(nullable = false)
-    private String sender;
+    @Column(name = "from_email", nullable = false)
+    private String fromEmail;
     
-    @Column(nullable = false)
-    private String recipient;
+    @Column(name = "to_email", nullable = false)
+    private String toEmail;
     
+    @Column(name = "username")
     private String username;
     
+    @Column(name = "password")
     private String password;
     
     @Column(name = "created_at")
-    private java.time.LocalDateTime createdAt;
+    private LocalDateTime createdAt;
     
     @Column(name = "updated_at")
-    private java.time.LocalDateTime updatedAt;
+    private LocalDateTime updatedAt;
     
     @PrePersist
     protected void onCreate() {
-        createdAt = java.time.LocalDateTime.now();
-        updatedAt = java.time.LocalDateTime.now();
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
     
     @PreUpdate
     protected void onUpdate() {
-        updatedAt = java.time.LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
     }
     
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     
-    public String getServer() { return server; }
-    public void setServer(String server) { this.server = server; }
+    public String getHost() { return host; }
+    public void setHost(String host) { this.host = host; }
     
     public Integer getPort() { return port; }
     public void setPort(Integer port) { this.port = port; }
     
-    public String getSender() { return sender; }
-    public void setSender(String sender) { this.sender = sender; }
+    public String getFromEmail() { return fromEmail; }
+    public void setFromEmail(String fromEmail) { this.fromEmail = fromEmail; }
     
-    public String getRecipient() { return recipient; }
-    public void setRecipient(String recipient) { this.recipient = recipient; }
+    public String getToEmail() { return toEmail; }
+    public void setToEmail(String toEmail) { this.toEmail = toEmail; }
     
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
@@ -65,9 +68,9 @@ public class MailConfig {
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
     
-    public java.time.LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(java.time.LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     
-    public java.time.LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(java.time.LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 }
