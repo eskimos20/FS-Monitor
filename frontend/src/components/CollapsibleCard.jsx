@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, storageKey }) => {
+const CollapsibleCard = ({ title, icon: Icon, children, defaultOpen = true, storageKey }) => {
   const getInitialState = () => {
     if (!storageKey) return defaultOpen;
     const saved = localStorage.getItem(`collapsible_${storageKey}`);
@@ -17,14 +17,14 @@ const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, s
   }, [isOpen, storageKey]);
 
   return (
-    <div className="card">
+    <div className="bg-white rounded-lg shadow">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors"
+        className="w-full flex items-center justify-between p-6 border-b border-gray-200 hover:bg-gray-50 transition-colors"
       >
-        <div className="flex items-center">
-          {Icon && <Icon className="h-5 w-5 text-primary-600 mr-3" />}
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center space-x-2">
+          {Icon && <Icon className="h-5 w-5 text-gray-600" />}
+          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
         </div>
         {isOpen ? (
           <ChevronUp className="h-5 w-5 text-gray-400" />
@@ -34,7 +34,7 @@ const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, s
       </button>
       
       {isOpen && (
-        <div className="px-4 pb-4">
+        <div>
           {children}
         </div>
       )}
@@ -42,4 +42,4 @@ const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, s
   );
 };
 
-export default CollapsibleSection;
+export default CollapsibleCard;

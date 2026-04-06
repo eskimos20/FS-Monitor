@@ -89,18 +89,18 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Check Interval</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
                   value={formData.checkIntervalValue}
                   onChange={(e) => setFormData({ ...formData, checkIntervalValue: parseInt(e.target.value) })}
-                  className="input-field w-20"
+                  className="input-field"
                   min="1"
                 />
                 <select
                   value={formData.checkIntervalUnit}
                   onChange={(e) => setFormData({ ...formData, checkIntervalUnit: e.target.value })}
-                  className="input-field flex-1"
+                  className="input-field"
                 >
                   <option value="MINUTES">Minutes</option>
                   <option value="HOURS">Hours</option>
@@ -110,18 +110,18 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Threshold</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
                   value={formData.thresholdValue}
                   onChange={(e) => setFormData({ ...formData, thresholdValue: parseInt(e.target.value) })}
-                  className="input-field w-20"
+                  className="input-field"
                   min="1"
                 />
                 <select
                   value={formData.thresholdUnit}
                   onChange={(e) => setFormData({ ...formData, thresholdUnit: e.target.value })}
-                  className="input-field flex-1"
+                  className="input-field"
                 >
                   <option value="MINUTES">Minutes</option>
                   <option value="HOURS">Hours</option>

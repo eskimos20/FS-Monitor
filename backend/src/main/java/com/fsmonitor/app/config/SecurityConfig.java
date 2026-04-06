@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/file-browser/**").permitAll()
                         .requestMatchers("/api/version").permitAll()
                         // Static resources (frontend) - Allow all routes for React Router
-                        .requestMatchers("/", "/index.html", "/login", "/dashboard", "/settings", "/assets/**", "/favicon.ico", "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
+                        .requestMatchers("/", "/index.html", "/login", "/dashboard", "/settings", "/assets/**", "/favicon.ico", "/vite.svg", "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
                         // API endpoints
                         .requestMatchers(HttpMethod.GET, "/api/integrations/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/integrations/**").hasRole("ADMIN")
@@ -66,6 +66,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/file-types/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/file-types/**").hasRole("ADMIN")
                         .requestMatchers("/api/mail-config/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/storage-configs/**").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/storage-configs/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/storage-configs/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/storage-configs/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
 

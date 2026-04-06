@@ -2,6 +2,7 @@ import React from 'react';
 import { Server, CheckCircle, XCircle } from 'lucide-react';
 import StatsCard from '../StatsCard';
 import ServiceTable from './ServiceTable';
+import CollapsibleCard from '../CollapsibleCard';
 
 const ServiceIntegrationsTab = ({ services, loading, error, onToggle }) => {
   if (loading) {
@@ -42,31 +43,25 @@ const ServiceIntegrationsTab = ({ services, loading, error, onToggle }) => {
       </div>
 
       {/* Services Table */}
-      <div className="card">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Service Integrations</h2>
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <Server className="h-4 w-4" />
-            <span>Service Monitoring</span>
-          </div>
+      <CollapsibleCard title="Service Integrations" icon={Server} defaultOpen={true} storageKey="dashboard_services">
+        <div className="p-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+              {error}
+            </div>
+          )}
+
+          {services.length === 0 ? (
+            <div className="text-center py-12">
+              <Server className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No services configured</h3>
+              <p className="mt-1 text-sm text-gray-500">Go to Settings to add your first service integration.</p>
+            </div>
+          ) : (
+            <ServiceTable services={services} onToggle={onToggle} />
+          )}
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
-            {error}
-          </div>
-        )}
-
-        {services.length === 0 ? (
-          <div className="text-center py-12">
-            <Server className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No services configured</h3>
-            <p className="mt-1 text-sm text-gray-500">Go to Settings to add your first service integration.</p>
-          </div>
-        ) : (
-          <ServiceTable services={services} onToggle={onToggle} />
-        )}
-      </div>
+      </CollapsibleCard>
     </div>
   );
 };

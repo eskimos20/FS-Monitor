@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Cpu, FolderOpen, Server, FileSearch } from 'lucide-react';
+import { Cpu, FolderOpen, Server, FileSearch, HardDrive } from 'lucide-react';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { useServices } from '../hooks/useServices';
 import { useSystemStats } from '../hooks/useSystemStats';
@@ -10,6 +10,7 @@ import SystemTab from '../components/dashboard/SystemTab';
 import FileIntegrationsTab from '../components/dashboard/FileIntegrationsTab';
 import ServiceIntegrationsTab from '../components/dashboard/ServiceIntegrationsTab';
 import LogControlTab from '../components/dashboard/LogControlTab';
+import StorageTable from '../components/dashboard/StorageTable';
 
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('system');
@@ -50,6 +51,12 @@ const DashboardPage = () => {
             label="Service Integrations"
           />
           <TabButton
+            active={activeTab === 'storage'}
+            onClick={() => setActiveTab('storage')}
+            icon={HardDrive}
+            label="Storage"
+          />
+          <TabButton
             active={activeTab === 'logs'}
             onClick={() => setActiveTab('logs')}
             icon={FileSearch}
@@ -80,6 +87,8 @@ const DashboardPage = () => {
           onToggle={toggleService}
         />
       )}
+      
+      {activeTab === 'storage' && <StorageTable />}
       
       {activeTab === 'logs' && (
         <LogControlTab

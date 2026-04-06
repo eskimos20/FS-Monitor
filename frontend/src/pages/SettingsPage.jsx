@@ -1,11 +1,12 @@
 import React from 'react';
-import { Folder, Server, Mail, FileSearch } from 'lucide-react';
+import { Folder, Server, Mail, FileSearch, HardDrive } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import CollapsibleSection from '../components/CollapsibleSection';
 import IntegrationSettings from '../components/settings/IntegrationSettings';
 import MailConfigSettings from '../components/settings/MailConfigSettings';
 import ServiceSettings from '../components/settings/ServiceSettings';
 import LogConfigSettings from '../components/settings/LogConfigSettings';
+import StorageConfigSettings from '../components/settings/StorageConfigSettings';
 
 const SettingsPage = () => {
   const {
@@ -14,6 +15,7 @@ const SettingsPage = () => {
     mailConfig,
     services,
     logConfigs,
+    storageConfigs,
     loading,
     error,
     success,
@@ -23,7 +25,9 @@ const SettingsPage = () => {
     saveService,
     deleteService,
     saveLogConfig,
-    deleteLogConfig
+    deleteLogConfig,
+    saveStorageConfig,
+    deleteStorageConfig
   } = useSettings();
 
   if (loading) {
@@ -56,14 +60,14 @@ const SettingsPage = () => {
 
       {/* Settings Sections - Centrerad layout */}
       <div className="max-w-4xl space-y-6">
-        <CollapsibleSection title="Email Configuration" icon={Mail} defaultOpen={false}>
+        <CollapsibleSection title="Email Configuration" icon={Mail} defaultOpen={false} storageKey="settings_email">
           <MailConfigSettings
             mailConfig={mailConfig}
             onSave={saveMailConfig}
           />
         </CollapsibleSection>
 
-        <CollapsibleSection title="File Integrations" icon={Folder} defaultOpen={true}>
+        <CollapsibleSection title="File Integrations" icon={Folder} defaultOpen={true} storageKey="settings_integrations">
           <IntegrationSettings
             integrations={integrations}
             fileTypes={fileTypes}
@@ -72,7 +76,7 @@ const SettingsPage = () => {
           />
         </CollapsibleSection>
 
-        <CollapsibleSection title="Service Monitoring" icon={Server} defaultOpen={true}>
+        <CollapsibleSection title="Service Monitoring" icon={Server} defaultOpen={true} storageKey="settings_services">
           <ServiceSettings
             services={services}
             onSave={saveService}
@@ -80,7 +84,15 @@ const SettingsPage = () => {
           />
         </CollapsibleSection>
 
-        <CollapsibleSection title="Log Monitoring" icon={FileSearch} defaultOpen={false}>
+        <CollapsibleSection title="Storage Monitoring" icon={HardDrive} defaultOpen={false} storageKey="settings_storage">
+          <StorageConfigSettings
+            storageConfigs={storageConfigs}
+            onSave={saveStorageConfig}
+            onDelete={deleteStorageConfig}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Log Monitoring" icon={FileSearch} defaultOpen={false} storageKey="settings_logs">
           <LogConfigSettings
             logConfigs={logConfigs}
             onSave={saveLogConfig}

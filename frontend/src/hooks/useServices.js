@@ -46,6 +46,9 @@ export const useServices = () => {
 
   useEffect(() => {
     fetchServices();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchServices, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return {

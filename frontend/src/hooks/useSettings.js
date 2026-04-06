@@ -8,23 +8,26 @@ export const useSettings = () => {
   const [mailConfig, setMailConfig] = useState(null);
   const [services, setServices] = useState([]);
   const [logConfigs, setLogConfigs] = useState([]);
+  const [storageConfigs, setStorageConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const fetchData = async () => {
     try {
-      const [integrationsRes, fileTypesRes, servicesRes, logConfigsRes] = await Promise.all([
+      const [integrationsRes, fileTypesRes, servicesRes, logConfigsRes, storageConfigsRes] = await Promise.all([
         integrationAPI.getAll().catch(() => ({ data: [] })),
         fileTypeAPI.getAll().catch(() => ({ data: [] })),
         api.get('/services').catch(() => ({ data: [] })),
-        logConfigAPI.getAll().catch(() => ({ data: [] }))
+        logConfigAPI.getAll().catch(() => ({ data: [] })),
+        api.get('/storage-configs').catch(() => ({ data: [] }))
       ]);
 
       setIntegrations(integrationsRes.data);
       setFileTypes(fileTypesRes.data);
       setServices(servicesRes.data);
       setLogConfigs(logConfigsRes.data);
+      setStorageConfigs(storageConfigsRes.data);
 
       try {
         const mailRes = await mailConfigAPI.getCurrent();
@@ -153,12 +156,42 @@ export const useSettings = () => {
     }
   };
 
+  const saveStorageConfig = async (data, id) => {
+    try {
+      if (id) {
+        await api.put(`/storage-configs/${id}`, data);
+        setSuccess('Storage configuration updated successfully');
+      } else {
+        await api.post('/storage-configs', data);
+        setSuccess('Storage configuration created successfully');
+      }
+      await fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to save storage configuration');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const deleteStorageConfig = async (id) => {
+    try {
+      await api.delete(`/storage-configs/${id}`);
+      setSuccess('Storage configuration deleted successfully');
+      await fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to delete storage configuration');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   return {
     integrations,
     fileTypes,
     mailConfig,
     services,
     logConfigs,
+    storageConfigs,
     loading,
     error,
     success,
@@ -169,6 +202,8 @@ export const useSettings = () => {
     deleteService,
     saveLogConfig,
     deleteLogConfig,
+    saveStorageConfig,
+    deleteStorageConfig,
     refreshData: fetchData
   };
 };
