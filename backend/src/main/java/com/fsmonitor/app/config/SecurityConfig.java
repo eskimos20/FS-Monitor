@@ -49,9 +49,14 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
+                        // Public endpoints
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/file-browser/**").permitAll()
+                        .requestMatchers("/api/version").permitAll()
+                        // Static resources (frontend)
+                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico", "/*.js", "/*.css").permitAll()
+                        // API endpoints
                         .requestMatchers(HttpMethod.GET, "/api/integrations/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/integrations/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/integrations/**").hasRole("ADMIN")
