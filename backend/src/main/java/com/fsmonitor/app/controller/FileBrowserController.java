@@ -49,12 +49,12 @@ public class FileBrowserController {
             
             File[] files = directory.listFiles();
             if (files == null) {
-                return ResponseEntity.ok(Map.of(
-                    "currentPath", normalizedPath.toString(),
-                    "parentPath", normalizedPath.getParent() != null ? normalizedPath.getParent().toString() : null,
-                    "directories", Collections.emptyList(),
-                    "files", Collections.emptyList()
-                ));
+                Map<String, Object> response = new HashMap<>();
+                response.put("currentPath", normalizedPath.toString());
+                response.put("parentPath", normalizedPath.getParent() != null ? normalizedPath.getParent().toString() : null);
+                response.put("directories", Collections.emptyList());
+                response.put("files", Collections.emptyList());
+                return ResponseEntity.ok(response);
             }
             
             List<Map<String, Object>> directories = Arrays.stream(files)
@@ -73,12 +73,12 @@ public class FileBrowserController {
             
             logger.debug("Found {} directories and {} files in {}", directories.size(), filesList.size(), path);
             
-            return ResponseEntity.ok(Map.of(
-                "currentPath", normalizedPath.toString(),
-                "parentPath", normalizedPath.getParent() != null ? normalizedPath.getParent().toString() : null,
-                "directories", directories,
-                "files", filesList
-            ));
+            Map<String, Object> response = new HashMap<>();
+            response.put("currentPath", normalizedPath.toString());
+            response.put("parentPath", normalizedPath.getParent() != null ? normalizedPath.getParent().toString() : null);
+            response.put("directories", directories);
+            response.put("files", filesList);
+            return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             logger.error("Error listing directory: {}", path, e);
