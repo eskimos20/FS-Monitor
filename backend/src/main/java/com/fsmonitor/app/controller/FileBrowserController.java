@@ -78,6 +78,7 @@ public class FileBrowserController {
             response.put("parentPath", normalizedPath.getParent() != null ? normalizedPath.getParent().toString() : null);
             response.put("directories", directories);
             response.put("files", filesList);
+            
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
