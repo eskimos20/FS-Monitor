@@ -16,6 +16,7 @@ cd ..
 
 # Kopiera frontend build till backend's static mapp
 echo "📋 Copying frontend to backend static resources..."
+mkdir -p backend/src/main/resources/static
 rm -rf backend/src/main/resources/static/*
 cp -r frontend/dist/* backend/src/main/resources/static/
 
