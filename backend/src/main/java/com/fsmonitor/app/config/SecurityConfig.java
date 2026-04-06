@@ -54,8 +54,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/file-browser/**").permitAll()
                         .requestMatchers("/api/version").permitAll()
-                        // Static resources (frontend)
-                        .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico", "/*.js", "/*.css").permitAll()
+                        // Static resources (frontend) - Allow all routes for React Router
+                        .requestMatchers("/", "/index.html", "/login", "/dashboard", "/settings", "/assets/**", "/favicon.ico", "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
                         // API endpoints
                         .requestMatchers(HttpMethod.GET, "/api/integrations/**").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/integrations/**").hasRole("ADMIN")
