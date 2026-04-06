@@ -7,6 +7,18 @@ set -e  # Avsluta om något kommando misslyckas
 
 echo "🔨 Building FS-Monitor JAR file..."
 
+# Bygg frontend först
+echo "🎨 Building frontend..."
+cd frontend
+npm install
+npm run build
+cd ..
+
+# Kopiera frontend build till backend's static mapp
+echo "📋 Copying frontend to backend static resources..."
+rm -rf backend/src/main/resources/static/*
+cp -r frontend/dist/* backend/src/main/resources/static/
+
 # Gå till backend katalogen
 cd backend
 
