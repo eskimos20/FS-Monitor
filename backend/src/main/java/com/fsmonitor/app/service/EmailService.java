@@ -4,10 +4,11 @@ import com.fsmonitor.app.entity.MailConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Service;
 
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeUtility;
 import java.util.Properties;
 
 @Service
@@ -61,15 +62,28 @@ public class EmailService {
             props.put("mail.smtp.timeout", "10000");
             props.put("mail.smtp.writetimeout", "10000");
             
-            // Create simple message
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(config.getFromEmail());
-            message.setTo(config.getToEmail());
-            message.setSubject(subject);
-            message.setText(body);
+            // Set UTF-8 encoding for Swedish characters (åäö)
+            props.put("mail.mime.charset", "UTF-8");
+            
+            // Create MimeMessage with proper encoding (matching working implementation)
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            
+            mimeMessage.setFrom(new jakarta.mail.internet.InternetAddress(config.getFromEmail()));
+            mimeMessage.setRecipients(jakarta.mail.Message.RecipientType.TO, 
+                                     jakarta.mail.internet.InternetAddress.parse(config.getToEmail()));
+            
+            // Set headers for proper UTF-8 encoding
+            mimeMessage.setHeader("Content-Transfer-Encoding", "quoted-printable");
+            mimeMessage.setHeader("Content-Type", "text/plain;charset=UTF-8");
+            
+            // Encode subject with Base64 for Swedish characters
+            mimeMessage.setSubject(MimeUtility.encodeWord(subject, "UTF-8", "B"));
+            
+            // Set content with explicit charset
+            mimeMessage.setContent(body, "text/plain;charset=UTF-8");
             
             // Send email
-            mailSender.send(message);
+            mailSender.send(mimeMessage);
             
             logger.info("Email sent successfully to {}", config.getToEmail());
             return true;
