@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { integrationAPI } from '../api/axios';
 
-export const useIntegrations = () => {
+export const useIntegrations = (refreshInterval = null) => {
   const [integrations, setIntegrations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchIntegrations = async () => {
+  const fetchIntegrations = useCallback(async () => {
     try {
       const response = await integrationAPI.getAll();
       setIntegrations(response.data);
@@ -16,7 +16,7 @@ export const useIntegrations = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const toggleIntegration = async (integrationId, currentStatus) => {
     try {
@@ -46,7 +46,12 @@ export const useIntegrations = () => {
 
   useEffect(() => {
     fetchIntegrations();
-  }, []);
+    
+    if (refreshInterval && refreshInterval > 0) {
+      const interval = setInterval(fetchIntegrations, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [fetchIntegrations, refreshInterval]);
 
   return {
     integrations,

@@ -16,12 +16,12 @@ import StorageTable from '../components/dashboard/StorageTable';
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('system');
   
-  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations();
-  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices();
   const { refreshIntervalMs } = useAppSettings();
+  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(refreshIntervalMs);
+  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(refreshIntervalMs);
   const { systemStats } = useSystemStats(refreshIntervalMs);
-  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus();
-  const { logConfigs } = useLogConfigs();
+  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(refreshIntervalMs);
+  const { logConfigs } = useLogConfigs(refreshIntervalMs);
 
   return (
     <div className="space-y-6">

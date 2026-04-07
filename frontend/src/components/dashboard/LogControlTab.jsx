@@ -56,6 +56,7 @@ const LogControlTab = ({ logConfigs }) => {
   });
 
   const activeConfigs = logConfigs.filter(c => c.active);
+  const totalMatchCount = logConfigs.reduce((sum, config) => sum + (config.lastMatchCount || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -78,7 +79,7 @@ const LogControlTab = ({ logConfigs }) => {
               <span>{lastUpdate.toLocaleTimeString()}</span>
             </div>
             <div className="text-sm font-medium text-gray-900">
-              {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+              {totalMatchCount} {totalMatchCount === 1 ? 'match' : 'matches'}
             </div>
           </div>
         </div>
@@ -114,9 +115,9 @@ const LogControlTab = ({ logConfigs }) => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {configMatches.length > 0 && (
+                        {(config.lastMatchCount > 0 || configMatches.length > 0) && (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            {configMatches.length} {configMatches.length === 1 ? 'match' : 'matches'}
+                            {config.lastMatchCount || configMatches.length} {(config.lastMatchCount || configMatches.length) === 1 ? 'match' : 'matches'}
                           </span>
                         )}
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${

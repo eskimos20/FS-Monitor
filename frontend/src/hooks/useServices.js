@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../api/axios';
 
-export const useServices = () => {
+export const useServices = (refreshInterval = null) => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     try {
       const response = await api.get('/services');
       setServices(response.data);
@@ -17,7 +17,7 @@ export const useServices = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const toggleService = async (serviceId, currentStatus) => {
     try {
@@ -46,10 +46,12 @@ export const useServices = () => {
 
   useEffect(() => {
     fetchServices();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchServices, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    if (refreshInterval && refreshInterval > 0) {
+      const interval = setInterval(fetchServices, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [fetchServices, refreshInterval]);
 
   return {
     services,

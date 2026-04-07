@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api, { logConfigAPI } from '../api/axios';
 
-export const useLogConfigs = () => {
+export const useLogConfigs = (refreshInterval = null) => {
   const [logConfigs, setLogConfigs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchLogConfigs = async () => {
+  const fetchLogConfigs = useCallback(async () => {
     try {
       setLoading(true);
       const response = await logConfigAPI.getAll();
@@ -17,11 +17,17 @@ export const useLogConfigs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchLogConfigs();
-  }, []);
+    
+    // Set up periodic refresh if interval is provided
+    if (refreshInterval && refreshInterval > 0) {
+      const interval = setInterval(fetchLogConfigs, refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [fetchLogConfigs, refreshInterval]);
 
   const createLogConfig = async (data) => {
     try {

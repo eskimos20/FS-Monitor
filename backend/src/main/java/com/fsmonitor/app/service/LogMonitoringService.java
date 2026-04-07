@@ -188,6 +188,10 @@ public class LogMonitoringService {
                 
                 logger.debug("Checking logs for config: {} (path: {}, fileTypes: {}, keywords: {}, recursive: {})", 
                     config.getName(), config.getPath(), config.getFileTypes(), config.getKeywords(), config.isRecursive());
+                
+                // Clear old matches for this config before adding new ones
+                clearMatchesForConfig(config.getId());
+                
                 List<LogMatch> matches = searchLogsInternal(config);
                 
                 // Save matches to in-memory cache only
@@ -273,6 +277,13 @@ public class LogMonitoringService {
         synchronized (recentMatches) {
             recentMatches.clear();
             logger.info("Cleared all matches from memory cache");
+        }
+    }
+
+    public void clearMatchesForConfig(Long configId) {
+        synchronized (recentMatches) {
+            recentMatches.removeIf(m -> m.getLogConfig() != null && m.getLogConfig().getId().equals(configId));
+            logger.info("Cleared matches for config {} from memory cache", configId);
         }
     }
 

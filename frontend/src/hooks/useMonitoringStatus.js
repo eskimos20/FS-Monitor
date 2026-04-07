@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../api/axios';
 
-export const useMonitoringStatus = () => {
+export const useMonitoringStatus = (refreshInterval = 5000) => {
   const [secondsUntilNextRun, setSecondsUntilNextRun] = useState(60);
   const [integrationTimers, setIntegrationTimers] = useState({});
+  const lastFetchRef = useRef(0);
 
-  const fetchMonitoringStatus = async () => {
+  const fetchMonitoringStatus = useCallback(async () => {
     try {
       const response = await api.get('/monitoring/status');
       setSecondsUntilNextRun(response.data.secondsUntilNextRun);
@@ -18,24 +19,18 @@ export const useMonitoringStatus = () => {
         }
         return newTimers;
       });
+      lastFetchRef.current = Date.now();
     } catch (error) {
       console.error('Failed to fetch monitoring status:', error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchMonitoringStatus();
     
-    const timer = setInterval(() => {
-      setSecondsUntilNextRun(prev => {
-        if (prev <= 1) {
-          setTimeout(() => {
-            fetchMonitoringStatus();
-          }, 2000);
-          return 60;
-        }
-        return prev - 1;
-      });
+    // Countdown timer runs every second for smooth UI
+    const countdownTimer = setInterval(() => {
+      setSecondsUntilNextRun(prev => Math.max(0, prev - 1));
       
       setIntegrationTimers(prev => {
         const newTimers = {};
@@ -46,8 +41,14 @@ export const useMonitoringStatus = () => {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, []);
+    // Fetch from backend at configured interval
+    const fetchTimer = setInterval(fetchMonitoringStatus, refreshInterval);
+
+    return () => {
+      clearInterval(countdownTimer);
+      clearInterval(fetchTimer);
+    };
+  }, [fetchMonitoringStatus, refreshInterval]);
 
   return {
     secondsUntilNextRun,

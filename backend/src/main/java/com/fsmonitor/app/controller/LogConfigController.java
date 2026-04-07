@@ -44,6 +44,9 @@ public class LogConfigController {
     public ResponseEntity<LogConfig> updateLogConfig(@PathVariable Long id, @RequestBody LogConfig logConfig) {
         return logConfigRepository.findById(id)
                 .map(existing -> {
+                    // Check if keywords changed - if so, clear old matches
+                    boolean keywordsChanged = !existing.getKeywords().equals(logConfig.getKeywords());
+                    
                     existing.setName(logConfig.getName());
                     existing.setPath(logConfig.getPath());
                     existing.setFileTypes(logConfig.getFileTypes());
@@ -51,6 +54,13 @@ public class LogConfigController {
                     existing.setCheckIntervalMinutes(logConfig.getCheckIntervalMinutes());
                     existing.setRecursive(logConfig.isRecursive());
                     existing.setActive(logConfig.isActive());
+                    
+                    // Clear matches if keywords changed
+                    if (keywordsChanged) {
+                        logMonitoringService.clearMatchesForConfig(id);
+                        existing.setLastMatchCount(0);
+                    }
+                    
                     return ResponseEntity.ok(logConfigRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -60,6 +70,7 @@ public class LogConfigController {
     public ResponseEntity<Void> deleteLogConfig(@PathVariable Long id) {
         return logConfigRepository.findById(id)
                 .map(config -> {
+                    logMonitoringService.clearMatchesForConfig(id);
                     logConfigRepository.delete(config);
                     return ResponseEntity.ok().<Void>build();
                 })
