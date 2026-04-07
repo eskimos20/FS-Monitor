@@ -17,8 +17,37 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
     cleanupAgeUnit: 'MONTHS',
     monitorAllFiles: false,
     monitoredFileTypes: [],
-    scheduleDays: []
+    scheduleDays: [],
+    scheduleEnabled: false,
+    activeDays: '',
+    activeStartHour: 0,
+    activeEndHour: 24
   });
+
+  const DAYS = [
+    { key: 'MON', label: 'Mon' },
+    { key: 'TUE', label: 'Tue' },
+    { key: 'WED', label: 'Wed' },
+    { key: 'THU', label: 'Thu' },
+    { key: 'FRI', label: 'Fri' },
+    { key: 'SAT', label: 'Sat' },
+    { key: 'SUN', label: 'Sun' }
+  ];
+
+  const toggleDay = (dayKey) => {
+    const currentDays = formData.activeDays ? formData.activeDays.split(',').filter(d => d) : [];
+    const index = currentDays.indexOf(dayKey);
+    if (index >= 0) {
+      currentDays.splice(index, 1);
+    } else {
+      currentDays.push(dayKey);
+    }
+    setFormData({ ...formData, activeDays: currentDays.join(',') });
+  };
+
+  const isDaySelected = (dayKey) => {
+    return formData.activeDays && formData.activeDays.split(',').includes(dayKey);
+  };
 
   useEffect(() => {
     if (integration) {
@@ -185,6 +214,95 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
               </p>
             </div>
           )}
+
+          {/* Schedule Settings */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <label className="flex items-center mb-3">
+              <input
+                type="checkbox"
+                checked={formData.scheduleEnabled || false}
+                onChange={(e) => setFormData({ ...formData, scheduleEnabled: e.target.checked })}
+                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <span className="ml-2 text-sm font-medium text-gray-700">Enable Schedule</span>
+            </label>
+
+            {formData.scheduleEnabled && (
+              <div className="space-y-4 mt-3 pt-3 border-t border-gray-200">
+                {/* Day Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Active Days</label>
+                  <div className="flex gap-2">
+                    {DAYS.map(day => (
+                      <button
+                        key={day.key}
+                        type="button"
+                        onClick={() => toggleDay(day.key)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                          isDaySelected(day.key)
+                            ? 'bg-primary-600 text-white border-primary-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Time Range */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Active Hours: {String(formData.activeStartHour || 0).padStart(2, '0')}:00 - {String(formData.activeEndHour || 24).padStart(2, '0')}:00
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="24"
+                        value={formData.activeStartHour || 0}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (val < (formData.activeEndHour || 24)) {
+                            setFormData({ ...formData, activeStartHour: val });
+                          }
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                      />
+                    </div>
+                    <span className="text-sm text-gray-500 w-8">to</span>
+                    <div className="flex-1">
+                      <input
+                        type="range"
+                        min="0"
+                        max="24"
+                        value={formData.activeEndHour || 24}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (val > (formData.activeStartHour || 0)) {
+                            setFormData({ ...formData, activeEndHour: val });
+                          }
+                        }}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>00:00</span>
+                    <span>06:00</span>
+                    <span>12:00</span>
+                    <span>18:00</span>
+                    <span>24:00</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  Monitoring will only run on selected days between the specified hours.
+                </p>
+              </div>
+            )}
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t">

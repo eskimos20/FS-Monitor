@@ -115,11 +115,16 @@ mvn clean compile -q
 echo "✅ Backend build completed successfully!"
 cd ..
 
-# Install frontend dependencies
+# Install frontend dependencies and build
 echo "📦 Installing frontend dependencies..."
 cd frontend
 npm install --silent
 echo "✅ Frontend dependencies installed!"
+
+# Build frontend to ensure latest changes are included
+echo "🔨 Building frontend..."
+npm run build --silent 2>/dev/null || npm run build
+echo "✅ Frontend build completed!"
 cd ..
 
 # Start services
@@ -127,9 +132,10 @@ echo "🚀 Starting services with REAL-TIME BACKEND LOGGING..."
 echo ""
 
 # Start frontend in background (logs to file)
+# Using 'preview' to serve the built version instead of 'dev' for hot reload
 echo "🌐 Starting frontend on port $FRONTEND_PORT..."
 cd frontend
-FRONTEND_PORT=$FRONTEND_PORT npm run dev > ../frontend.log 2>&1 &
+FRONTEND_PORT=$FRONTEND_PORT npm run preview > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 cd ..
 

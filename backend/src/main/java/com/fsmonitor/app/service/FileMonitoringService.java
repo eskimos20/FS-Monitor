@@ -82,6 +82,17 @@ public class FileMonitoringService {
     public LocalDateTime getNextSchedulerRun() { return nextSchedulerRun; }
 
     private boolean shouldCheckIntegration(Integration integration, LocalDateTime now) {
+        // Check schedule constraints first
+        if (Boolean.TRUE.equals(integration.getScheduleEnabled())) {
+            if (!isWithinSchedule(integration.getActiveDays(), 
+                                   integration.getActiveStartHour(), 
+                                   integration.getActiveEndHour(), 
+                                   now)) {
+                logger.debug("Integration {} is outside scheduled time, skipping", integration.getName());
+                return false;
+            }
+        }
+        
         LocalDateTime lastCheck = integration.getLastCheckedAt();
         if (lastCheck == null) {
             integration.setLastCheckedAt(now);
@@ -92,6 +103,26 @@ public class FileMonitoringService {
         LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
             .plusMinutes(integration.getCheckIntervalMinutes().longValue());
         return !now.isBefore(nextCheck);
+    }
+
+    private boolean isWithinSchedule(String activeDays, Integer startHour, Integer endHour, LocalDateTime now) {
+        // Check day of week
+        if (activeDays != null && !activeDays.isEmpty()) {
+            String currentDay = now.getDayOfWeek().name().substring(0, 3).toUpperCase();
+            if (!activeDays.toUpperCase().contains(currentDay)) {
+                return false;
+            }
+        }
+        
+        // Check time of day
+        if (startHour != null && endHour != null) {
+            int currentHour = now.getHour();
+            if (currentHour < startHour || currentHour >= endHour) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     private void checkIntegration(Integration integration, LocalDateTime now) {

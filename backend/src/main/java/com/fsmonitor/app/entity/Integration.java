@@ -70,6 +70,18 @@ public class Integration {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    @Column(name = "schedule_enabled")
+    private Boolean scheduleEnabled = false;
+
+    @Column(name = "active_days")
+    private String activeDays;
+
+    @Column(name = "active_start_hour")
+    private Integer activeStartHour = 0;
+
+    @Column(name = "active_end_hour")
+    private Integer activeEndHour = 24;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -173,4 +185,16 @@ public class Integration {
 
     public Set<ScheduleDay> getScheduleDays() { return scheduleDays; }
     public void setScheduleDays(Set<ScheduleDay> scheduleDays) { this.scheduleDays = scheduleDays; }
+
+    public Boolean getScheduleEnabled() { return scheduleEnabled; }
+    public void setScheduleEnabled(Boolean scheduleEnabled) { this.scheduleEnabled = scheduleEnabled; }
+
+    public String getActiveDays() { return activeDays; }
+    public void setActiveDays(String activeDays) { this.activeDays = activeDays; }
+
+    public Integer getActiveStartHour() { return activeStartHour; }
+    public void setActiveStartHour(Integer activeStartHour) { this.activeStartHour = activeStartHour; }
+
+    public Integer getActiveEndHour() { return activeEndHour; }
+    public void setActiveEndHour(Integer activeEndHour) { this.activeEndHour = activeEndHour; }
 }

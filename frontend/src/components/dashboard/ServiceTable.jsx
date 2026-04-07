@@ -1,5 +1,30 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Calendar } from 'lucide-react';
+
+const formatSchedule = (item) => {
+  if (!item.scheduleEnabled) {
+    return null;
+  }
+  
+  const dayLabels = {
+    'MON': 'Mon', 'TUE': 'Tue', 'WED': 'Wed', 'THU': 'Thu', 
+    'FRI': 'Fri', 'SAT': 'Sat', 'SUN': 'Sun'
+  };
+  
+  let days = 'All days';
+  if (item.activeDays) {
+    const dayList = item.activeDays.split(',').filter(d => d);
+    if (dayList.length > 0 && dayList.length < 7) {
+      days = dayList.map(d => dayLabels[d] || d).join(', ');
+    }
+  }
+  
+  const startHour = String(item.activeStartHour || 0).padStart(2, '0');
+  const endHour = String(item.activeEndHour || 24).padStart(2, '0');
+  const timeRange = `${startHour}:00 - ${endHour}:00`;
+  
+  return `${days} at ${timeRange}`;
+};
 
 const ServiceTable = ({ services, onToggle }) => {
   const [expandedItems, setExpandedItems] = useState(() => {
@@ -58,7 +83,7 @@ const ServiceTable = ({ services, onToggle }) => {
 
             {isExpanded && (
               <div className="px-4 pb-4 pt-0 border-t border-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Type</p>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
@@ -74,6 +99,15 @@ const ServiceTable = ({ services, onToggle }) => {
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Check Interval</p>
                     <p className="text-sm text-gray-900">{service.checkIntervalMinutes} minutes</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Schedule</p>
+                    <div className="flex items-center text-sm text-gray-900">
+                      <Calendar className="h-4 w-4 mr-1 text-blue-500" />
+                      <span className={service.scheduleEnabled ? '' : 'text-gray-400'}>
+                        {formatSchedule(service) || 'Always active'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

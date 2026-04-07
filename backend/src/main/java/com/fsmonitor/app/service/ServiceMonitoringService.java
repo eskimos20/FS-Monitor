@@ -86,6 +86,17 @@ public class ServiceMonitoringService {
     }
 
     private boolean shouldCheckService(Service service, LocalDateTime now) {
+        // Check schedule constraints first
+        if (Boolean.TRUE.equals(service.getScheduleEnabled())) {
+            if (!isWithinSchedule(service.getActiveDays(), 
+                                   service.getActiveStartHour(), 
+                                   service.getActiveEndHour(), 
+                                   now)) {
+                logger.debug("Service {} is outside scheduled time, skipping", service.getName());
+                return false;
+            }
+        }
+        
         LocalDateTime lastCheck = service.getLastCheckedAt();
         if (lastCheck == null) {
             service.setLastCheckedAt(now);
@@ -96,6 +107,26 @@ public class ServiceMonitoringService {
         LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
             .plusMinutes(service.getCheckIntervalMinutes().longValue());
         return !now.isBefore(nextCheck);
+    }
+
+    private boolean isWithinSchedule(String activeDays, Integer startHour, Integer endHour, LocalDateTime now) {
+        // Check day of week
+        if (activeDays != null && !activeDays.isEmpty()) {
+            String currentDay = now.getDayOfWeek().name().substring(0, 3).toUpperCase();
+            if (!activeDays.toUpperCase().contains(currentDay)) {
+                return false;
+            }
+        }
+        
+        // Check time of day
+        if (startHour != null && endHour != null) {
+            int currentHour = now.getHour();
+            if (currentHour < startHour || currentHour >= endHour) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     private ServiceChecker getCheckerForService(Service service) {

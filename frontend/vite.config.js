@@ -35,5 +35,16 @@ export default defineConfig({
         },
       }
     }
+  },
+  preview: {
+    port: config.frontendPort,
+    host: config.frontendHost,
+    proxy: {
+      '/api': {
+        target: `http://${config.backendHost}:${config.backendPort}`,
+        changeOrigin: true,
+        secure: false
+      }
+    }
   }
 })

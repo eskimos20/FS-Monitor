@@ -48,6 +48,10 @@ public class IntegrationService {
                     integration.setMonitorAllFiles(integrationDetails.getMonitorAllFiles());
                     integration.setScheduleDays(integrationDetails.getScheduleDays());
                     integration.setMonitoredFileTypes(integrationDetails.getMonitoredFileTypes());
+                    integration.setScheduleEnabled(integrationDetails.getScheduleEnabled());
+                    integration.setActiveDays(integrationDetails.getActiveDays());
+                    integration.setActiveStartHour(integrationDetails.getActiveStartHour());
+                    integration.setActiveEndHour(integrationDetails.getActiveEndHour());
                     integration.setUpdatedAt(java.time.LocalDateTime.now());
                     return integrationRepository.save(integration);
                 })
