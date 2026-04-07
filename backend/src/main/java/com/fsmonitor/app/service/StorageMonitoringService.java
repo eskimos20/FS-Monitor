@@ -1,13 +1,8 @@
 package com.fsmonitor.app.service;
 
-import com.fsmonitor.app.entity.DiskSpace;
-import com.fsmonitor.app.entity.LargestFile;
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.entity.StorageConfig;
-import com.fsmonitor.app.entity.StorageInfo;
-import com.fsmonitor.app.repository.DiskSpaceRepository;
-import com.fsmonitor.app.repository.LargestFileRepository;
 import com.fsmonitor.app.repository.StorageConfigRepository;
-import com.fsmonitor.app.repository.StorageInfoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -32,16 +28,7 @@ public class StorageMonitoringService {
     private StorageConfigRepository storageConfigRepository;
     
     @Autowired
-    private StorageInfoRepository storageInfoRepository;
-    
-    @Autowired
-    private LargestFileRepository largestFileRepository;
-    
-    @Autowired
-    private DiskSpaceRepository diskSpaceRepository;
-    
-    @Autowired
-    private StorageDataService storageDataService;
+    private MonitoringCacheManager cacheManager;
     
     private final Map<Long, Long> lastCheckTimes = new ConcurrentHashMap<>();
     
@@ -62,7 +49,7 @@ public class StorageMonitoringService {
         }
     }
     
-    @Scheduled(fixedRate = 60000) // Check every minute
+    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Check every minute, wait 1 min after startup
     public void monitorStorage() {
         List<StorageConfig> activeConfigs = storageConfigRepository.findByActiveTrue();
         long currentTime = System.currentTimeMillis();
@@ -82,6 +69,8 @@ public class StorageMonitoringService {
             if ((currentTime - lastCheck) >= intervalMillis) {
                 logger.info("Scanning storage for config: {} ({})", config.getName(), config.getPath());
                 try {
+                    // Clear cache for this storage config when a new scan runs
+                    cacheManager.clearStorageCache(config.getId());
                     scanStorage(config);
                     lastCheckTimes.put(config.getId(), currentTime);
                 } catch (Exception e) {
@@ -100,8 +89,7 @@ public class StorageMonitoringService {
                 return;
             }
             
-            // Delete old data (via separate service with @Transactional)
-            storageDataService.deleteOldStorageData(config.getId());
+            MonitoringCacheManager.StorageCache cache = cacheManager.getStorageCache(config.getId());
             
             // Scan directories
             Map<String, DirectoryStats> directoryStatsMap = new HashMap<>();
@@ -119,15 +107,17 @@ public class StorageMonitoringService {
                 .limit(TOP_DIRECTORIES_LIMIT)
                 .collect(Collectors.toList());
             
+            List<MonitoringCacheManager.StorageInfoData> storageInfoList = new ArrayList<>();
             for (Map.Entry<String, DirectoryStats> entry : topDirectories) {
-                StorageInfo info = new StorageInfo();
-                info.setStorageConfig(config);
+                MonitoringCacheManager.StorageInfoData info = new MonitoringCacheManager.StorageInfoData();
                 info.setPath(entry.getKey());
                 info.setTotalSizeBytes(entry.getValue().totalSize);
                 info.setFileCount(entry.getValue().fileCount);
                 info.setDirectoryCount(entry.getValue().directoryCount);
-                storageInfoRepository.save(info);
+                info.setScannedAt(LocalDateTime.now());
+                storageInfoList.add(info);
             }
+            cache.setStorageInfoList(storageInfoList);
             
             // Save top largest files
             List<FileInfo> topFiles = allFiles.stream()
@@ -135,28 +125,30 @@ public class StorageMonitoringService {
                 .limit(TOP_FILES_LIMIT)
                 .collect(Collectors.toList());
             
+            List<MonitoringCacheManager.LargestFileData> largestFilesList = new ArrayList<>();
             for (FileInfo fileInfo : topFiles) {
-                LargestFile largestFile = new LargestFile();
-                largestFile.setStorageConfig(config);
+                MonitoringCacheManager.LargestFileData largestFile = new MonitoringCacheManager.LargestFileData();
                 largestFile.setFilePath(fileInfo.path);
                 largestFile.setSizeBytes(fileInfo.size);
-                largestFileRepository.save(largestFile);
+                largestFile.setScannedAt(LocalDateTime.now());
+                largestFilesList.add(largestFile);
             }
+            cache.setLargestFiles(largestFilesList);
             
             // Calculate total size of the directory
             long totalSize = directoryStatsMap.values().stream()
                 .mapToLong(stats -> stats.totalSize)
                 .sum();
             
-            // Save disk space information (directory size, not volume size)
-            DiskSpace diskSpace = new DiskSpace();
-            diskSpace.setStorageConfig(config);
-            diskSpace.setTotalBytes(totalSize);  // Total size of all files in the directory
-            diskSpace.setUsableBytes(0L);  // Not applicable for directory size
-            diskSpaceRepository.save(diskSpace);
+            // Save disk space information to cache
+            MonitoringCacheManager.DiskSpaceData diskSpace = new MonitoringCacheManager.DiskSpaceData();
+            diskSpace.setTotalBytes(totalSize);
+            diskSpace.setUsableBytes(0L);
+            diskSpace.setScannedAt(LocalDateTime.now());
+            cache.setDiskSpace(diskSpace);
             
-            logger.info("Storage scan completed for {}: {} directories (showing top {}), {} files, total size: {} bytes", 
-                config.getName(), directoryStatsMap.size(), topDirectories.size(), allFiles.size(), totalSize);
+            logger.info("Storage scan completed for {}: {} directories, {} files, total size: {} bytes", 
+                config.getName(), directoryStatsMap.size(), allFiles.size(), totalSize);
             
         } catch (Exception e) {
             logger.error("Error scanning storage for config {}: {}", config.getName(), e.getMessage());

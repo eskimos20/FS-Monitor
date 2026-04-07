@@ -58,15 +58,7 @@ public class Service {
     @Column(name = "active_end_hour")
     private Integer activeEndHour = 24;
 
-    @Column(name = "last_checked_at")
-    private LocalDateTime lastCheckedAt;
-
-    @Column(name = "last_successful_check")
-    private LocalDateTime lastSuccessfulCheck;
-
-    @Enumerated(EnumType.STRING)
-    private ServiceStatus status = ServiceStatus.UNKNOWN;
-
+    @Column(name = "last_error")
     private String lastError;
 
     @Column(name = "created_at")
@@ -199,15 +191,6 @@ public class Service {
 
     public Integer getCheckIntervalMinutes() { return checkIntervalMinutes; }
     public void setCheckIntervalMinutes(Integer checkIntervalMinutes) { this.checkIntervalMinutes = checkIntervalMinutes; }
-
-    public LocalDateTime getLastCheckedAt() { return lastCheckedAt; }
-    public void setLastCheckedAt(LocalDateTime lastCheckedAt) { this.lastCheckedAt = lastCheckedAt; }
-
-    public LocalDateTime getLastSuccessfulCheck() { return lastSuccessfulCheck; }
-    public void setLastSuccessfulCheck(LocalDateTime lastSuccessfulCheck) { this.lastSuccessfulCheck = lastSuccessfulCheck; }
-
-    public ServiceStatus getStatus() { return status; }
-    public void setStatus(ServiceStatus status) { this.status = status; }
 
     public String getLastError() { return lastError; }
     public void setLastError(String lastError) { this.lastError = lastError; }

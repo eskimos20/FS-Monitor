@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../api/axios';
+import api, { cacheAPI } from '../api/axios';
 
 export const useServices = (refreshInterval = null) => {
   const [services, setServices] = useState([]);
@@ -8,8 +8,31 @@ export const useServices = (refreshInterval = null) => {
 
   const fetchServices = useCallback(async () => {
     try {
-      const response = await api.get('/services');
-      setServices(response.data);
+      // Fetch service configs and statuses in parallel
+      const [configResponse, statusResponse] = await Promise.all([
+        api.get('/services'),
+        cacheAPI.getServiceStatuses()
+      ]);
+      
+      const configs = configResponse.data;
+      const statuses = statusResponse.data;
+      
+      // Create a map of statuses by service ID
+      const statusMap = {};
+      statuses.forEach(status => {
+        statusMap[status.id] = status;
+      });
+      
+      // Merge configs with statuses
+      const mergedServices = configs.map(config => ({
+        ...config,
+        status: statusMap[config.id]?.status || 'UNKNOWN',
+        lastError: statusMap[config.id]?.lastError,
+        lastCheckedAt: statusMap[config.id]?.lastCheckedAt,
+        lastSuccessfulCheck: statusMap[config.id]?.lastSuccessfulCheck
+      }));
+      
+      setServices(mergedServices);
       setError('');
     } catch (error) {
       setError('Failed to load services');

@@ -57,12 +57,6 @@ public class Integration {
     @Column(name = "cleanup_age_unit")
     private TimeInterval cleanupAgeUnit = TimeInterval.MONTHS;
 
-    @Column(name = "last_file_found")
-    private LocalDateTime lastFileFound;
-
-    @Column(name = "last_file_name")
-    private String lastFileName;
-
     @NotNull
     @Column(name = "monitor_all_files")
     private Boolean monitorAllFiles = false;
@@ -87,9 +81,6 @@ public class Integration {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
-    @Column(name = "last_checked_at")
-    private LocalDateTime lastCheckedAt;
 
     @ManyToMany
     @JoinTable(
@@ -159,12 +150,6 @@ public class Integration {
     // Computed for backward compatibility
     public Long getCleanupAgeMinutes() { return cleanupAgeUnit.toMinutes(cleanupAgeValue); }
 
-    public LocalDateTime getLastFileFound() { return lastFileFound; }
-    public void setLastFileFound(LocalDateTime lastFileFound) { this.lastFileFound = lastFileFound; }
-
-    public String getLastFileName() { return lastFileName; }
-    public void setLastFileName(String lastFileName) { this.lastFileName = lastFileName; }
-
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
@@ -173,9 +158,6 @@ public class Integration {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
-
-    public LocalDateTime getLastCheckedAt() { return lastCheckedAt; }
-    public void setLastCheckedAt(LocalDateTime lastCheckedAt) { this.lastCheckedAt = lastCheckedAt; }
 
     public Boolean getMonitorAllFiles() { return monitorAllFiles; }
     public void setMonitorAllFiles(Boolean monitorAllFiles) { this.monitorAllFiles = monitorAllFiles; }

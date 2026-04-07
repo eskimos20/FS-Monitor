@@ -40,9 +40,6 @@ public class LogConfig {
     @Column(name = "last_check")
     private LocalDateTime lastCheck;
 
-    @Column(name = "last_match_count")
-    private int lastMatchCount = 0;
-
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -80,9 +77,6 @@ public class LogConfig {
 
     public LocalDateTime getLastCheck() { return lastCheck; }
     public void setLastCheck(LocalDateTime lastCheck) { this.lastCheck = lastCheck; }
-
-    public int getLastMatchCount() { return lastMatchCount; }
-    public void setLastMatchCount(int lastMatchCount) { this.lastMatchCount = lastMatchCount; }
 
     public Integer getCheckIntervalMinutes() { return checkIntervalMinutes != null ? checkIntervalMinutes : 5; }
     public void setCheckIntervalMinutes(Integer checkIntervalMinutes) { this.checkIntervalMinutes = checkIntervalMinutes; }

@@ -1,13 +1,11 @@
 package com.fsmonitor.app.service;
 
-import com.fsmonitor.app.entity.NotificationLog;
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.entity.NotificationType;
-import com.fsmonitor.app.repository.NotificationLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -20,15 +18,14 @@ public class NotificationService {
     private EmailService emailService;
 
     @Autowired
-    private NotificationLogRepository notificationLogRepository;
+    private MonitoringCacheManager cacheManager;
 
     @Autowired
     private MailConfigService mailConfigService;
 
-    @Transactional
     public boolean checkAndSendIntegrationNotification(Long integrationId, String integrationName, LocalDateTime lastFileFound) {
         // Check if notification already sent
-        if (notificationLogRepository.findByTypeAndEntityId(NotificationType.INTEGRATION_INACTIVE, integrationId).isPresent()) {
+        if (cacheManager.getNotification(NotificationType.INTEGRATION_INACTIVE, integrationId).isPresent()) {
             logger.debug("Integration {} notification already sent", integrationName);
             return false;
         }
@@ -57,12 +54,8 @@ public class NotificationService {
         }
         
         if (emailSent) {
-            // Log the notification
-            NotificationLog log = new NotificationLog();
-            log.setType(NotificationType.INTEGRATION_INACTIVE);
-            log.setEntityId(integrationId);
-            log.setEntityName(integrationName);
-            notificationLogRepository.save(log);
+            // Cache the notification
+            cacheManager.saveNotification(NotificationType.INTEGRATION_INACTIVE, integrationId, integrationName);
             
             logger.info("Integration {} inactive notification sent", integrationName);
             return true;
@@ -73,10 +66,9 @@ public class NotificationService {
         }
     }
 
-    @Transactional
     public boolean checkAndSendServiceNotification(Long serviceId, String serviceName) {
         // Check if notification already sent
-        if (notificationLogRepository.findByTypeAndEntityId(NotificationType.SERVICE_OFFLINE, serviceId).isPresent()) {
+        if (cacheManager.getNotification(NotificationType.SERVICE_OFFLINE, serviceId).isPresent()) {
             logger.debug("Service {} notification already sent", serviceName);
             return false;
         }
@@ -98,12 +90,8 @@ public class NotificationService {
         boolean emailSent = emailService.sendEmail(subject, body);
         
         if (emailSent) {
-            // Log the notification
-            NotificationLog log = new NotificationLog();
-            log.setType(NotificationType.SERVICE_OFFLINE);
-            log.setEntityId(serviceId);
-            log.setEntityName(serviceName);
-            notificationLogRepository.save(log);
+            // Cache the notification
+            cacheManager.saveNotification(NotificationType.SERVICE_OFFLINE, serviceId, serviceName);
             
             logger.info("Service {} offline notification sent", serviceName);
             return true;
@@ -113,15 +101,13 @@ public class NotificationService {
         }
     }
 
-    @Transactional
     public void clearIntegrationNotification(Long integrationId) {
-        notificationLogRepository.deleteByTypeAndEntityId(NotificationType.INTEGRATION_INACTIVE, integrationId);
-        logger.debug("Cleared integration {} notification log", integrationId);
+        cacheManager.clearNotification(NotificationType.INTEGRATION_INACTIVE, integrationId);
+        logger.debug("Cleared integration {} notification cache", integrationId);
     }
 
-    @Transactional
     public void clearServiceNotification(Long serviceId) {
-        notificationLogRepository.deleteByTypeAndEntityId(NotificationType.SERVICE_OFFLINE, serviceId);
-        logger.debug("Cleared service {} notification log", serviceId);
+        cacheManager.clearNotification(NotificationType.SERVICE_OFFLINE, serviceId);
+        logger.debug("Cleared service {} notification cache", serviceId);
     }
 }

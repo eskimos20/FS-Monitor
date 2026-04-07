@@ -1,5 +1,6 @@
 package com.fsmonitor.app.service;
 
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.entity.ServiceStatus;
 import com.fsmonitor.app.entity.ServiceType;
@@ -9,7 +10,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -25,6 +25,9 @@ public class ServiceMonitoringService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private MonitoringCacheManager cacheManager;
 
     private final Map<ServiceType, ServiceChecker> checkers;
 
@@ -50,21 +53,18 @@ public class ServiceMonitoringService {
     }
 
     @jakarta.annotation.PostConstruct
-    @Transactional
     public void init() {
-        // Initialize lastCheckedAt for all services that don't have it
+        // Initialize cache for all services
         List<Service> allServices = serviceRepository.findAll();
         LocalDateTime now = LocalDateTime.now();
         for (Service service : allServices) {
-            if (service.getLastCheckedAt() == null) {
-                service.setLastCheckedAt(now);
-                serviceRepository.save(service);
-            }
+            MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
+            cache.setLastCheckedAt(now);
+            cache.setStatus(ServiceStatus.UNKNOWN);
         }
     }
 
     @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
-    @Transactional
     public void monitorServices() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         
@@ -97,10 +97,10 @@ public class ServiceMonitoringService {
             }
         }
         
-        LocalDateTime lastCheck = service.getLastCheckedAt();
+        MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
+        LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
-            service.setLastCheckedAt(now);
-            serviceRepository.save(service);
+            cache.setLastCheckedAt(now);
             return false;
         }
         
@@ -149,40 +149,42 @@ public class ServiceMonitoringService {
     private void checkService(Service service, LocalDateTime now) {
         logger.info("Running check for service: {}", service.getName());
         
+        // Clear cache for this service when a new check runs
+        cacheManager.clearServiceCache(service.getId());
+        MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
+        
         ServiceChecker checker = getCheckerForService(service);
         if (checker == null) {
             logger.warn("No checker found for service type: {}", service.getType());
-            service.setStatus(ServiceStatus.UNKNOWN);
-            service.setLastError("No checker available for type: " + service.getType());
+            cache.setStatus(ServiceStatus.UNKNOWN);
+            cache.setLastError("No checker available for type: " + service.getType());
         } else {
             try {
                 boolean isOnline = checker.check(service);
-                service.setLastCheckedAt(now);
+                cache.setLastCheckedAt(now);
                 
                 if (isOnline) {
-                    service.setStatus(ServiceStatus.ONLINE);
-                    service.setLastSuccessfulCheck(now);
-                    service.setLastError(null);
+                    cache.setStatus(ServiceStatus.ONLINE);
+                    cache.setLastSuccessfulCheck(now);
+                    cache.setLastError(null);
                 } else {
-                    service.setStatus(ServiceStatus.OFFLINE);
-                    service.setLastError("Service check failed");
+                    cache.setStatus(ServiceStatus.OFFLINE);
+                    cache.setLastError("Service check failed");
                 }
             } catch (Exception e) {
-                service.setStatus(ServiceStatus.OFFLINE);
-                service.setLastError(e.getMessage());
+                cache.setStatus(ServiceStatus.OFFLINE);
+                cache.setLastError(e.getMessage());
                 logger.error("Service check failed for {}: {}", service.getName(), e.getMessage());
             }
         }
         
-        serviceRepository.save(service);
-        
         // Check if service is offline and send notification
-        if (service.getIsActive() && service.getStatus() == ServiceStatus.OFFLINE) {
+        if (service.getIsActive() && cache.getStatus() == ServiceStatus.OFFLINE) {
             notificationService.checkAndSendServiceNotification(
                 service.getId(), 
                 service.getName()
             );
-        } else if (service.getIsActive() && service.getStatus() == ServiceStatus.ONLINE) {
+        } else if (service.getIsActive() && cache.getStatus() == ServiceStatus.ONLINE) {
             // Service is online, clear any existing notification
             notificationService.clearServiceNotification(service.getId());
         }

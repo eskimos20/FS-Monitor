@@ -13,10 +13,10 @@ public interface IntegrationRepository extends JpaRepository<Integration, Long> 
     List<Integration> findByMonitoringEnabledTrue();
     List<Integration> findByCleanupEnabledTrue();
     
-    @Query("SELECT i FROM Integration i WHERE i.monitoringEnabled = true AND i.isActive = true")
+    @Query("SELECT DISTINCT i FROM Integration i LEFT JOIN FETCH i.monitoredFileTypes WHERE i.monitoringEnabled = true AND i.isActive = true")
     List<Integration> findActiveMonitoringIntegrations();
     
-    @Query("SELECT i FROM Integration i WHERE i.cleanupEnabled = true AND i.isActive = true")
+    @Query("SELECT DISTINCT i FROM Integration i LEFT JOIN FETCH i.monitoredFileTypes WHERE i.cleanupEnabled = true AND i.isActive = true")
     List<Integration> findActiveCleanupIntegrations();
     
     Optional<Integration> findByName(String name);

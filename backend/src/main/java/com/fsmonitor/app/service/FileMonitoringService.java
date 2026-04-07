@@ -1,5 +1,6 @@
 package com.fsmonitor.app.service;
 
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.repository.IntegrationRepository;
@@ -8,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,18 +29,16 @@ public class FileMonitoringService {
     private LocalDateTime nextSchedulerRun;
 
     @jakarta.annotation.PostConstruct
-    @Transactional
     public void init() {
         // First run will be 60s after startup
         nextSchedulerRun = LocalDateTime.now().plusSeconds(60);
         
-        // Reset lastCheckedAt for all integrations on startup
-        // This ensures timers start from their full interval
+        // Initialize cache for all integrations on startup
         List<Integration> allIntegrations = integrationRepository.findAll();
         LocalDateTime now = LocalDateTime.now();
         for (Integration integration : allIntegrations) {
-            integration.setLastCheckedAt(now);
-            integrationRepository.save(integration);
+            MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+            cache.setLastCheckedAt(now);
         }
     }
 
@@ -50,8 +48,10 @@ public class FileMonitoringService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private MonitoringCacheManager cacheManager;
+
     @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
-    @Transactional
     public void monitorIntegrations() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
@@ -64,7 +64,7 @@ public class FileMonitoringService {
         for (Integration integration : activeIntegrations) {
             try {
                 if (shouldCheckIntegration(integration, now)) {
-                    logger.info("Starting check for integration: {} (ID: {})", integration.getName(), integration.getId());
+                    logger.info("Starting check for integration: {}", integration.getName());
                     long startTime = System.currentTimeMillis();
                     checkIntegration(integration, now);
                     long endTime = System.currentTimeMillis();
@@ -93,10 +93,10 @@ public class FileMonitoringService {
             }
         }
         
-        LocalDateTime lastCheck = integration.getLastCheckedAt();
+        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
-            integration.setLastCheckedAt(now);
-            integrationRepository.save(integration);
+            cache.setLastCheckedAt(now);
             return false;
         }
         
@@ -136,8 +136,12 @@ public class FileMonitoringService {
             return;
         }
 
+        // Clear cache for this integration when a new check runs
+        cacheManager.clearIntegrationCache(integration.getId());
+        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        
         // Mark that the scheduler checked this integration at this cycle's timestamp
-        integration.setLastCheckedAt(now);
+        cache.setLastCheckedAt(now);
 
         // Find the latest file recursively
         File latestFile;
@@ -153,17 +157,15 @@ public class FileMonitoringService {
                 ZoneId.systemDefault()
             );
             
-            integration.setLastFileFound(fileModifiedTime);
-            integration.setLastFileName(latestFile.getAbsolutePath());
+            cache.setLastFileFound(fileModifiedTime);
+            cache.setLastFileName(latestFile.getAbsolutePath());
         } else {
             logger.debug("No monitored files found for integration: {}", integration.getName());
         }
         
-        integrationRepository.save(integration);
-        
         // Check if integration is inactive and send notification
         if (integration.getIsActive() && integration.getMonitoringEnabled()) {
-            LocalDateTime lastFileFound = integration.getLastFileFound();
+            LocalDateTime lastFileFound = cache.getLastFileFound();
             LocalDateTime threshold = now.minusMinutes(integration.getThresholdMinutes().longValue());
             
             if (lastFileFound == null || lastFileFound.isBefore(threshold)) {
@@ -286,7 +288,8 @@ public class FileMonitoringService {
             return false;
         }
         
-        LocalDateTime lastFileFound = integration.getLastFileFound();
+        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        LocalDateTime lastFileFound = cache.getLastFileFound();
         if (lastFileFound == null) {
             return false;
         }

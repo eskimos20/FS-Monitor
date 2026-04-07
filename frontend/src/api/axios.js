@@ -85,4 +85,15 @@ export const appSettingsAPI = {
   save: (data) => api.post('/app-settings', data)
 };
 
+export const cacheAPI = {
+  getStats: () => api.get('/monitoring-cache/stats'),
+  getIntegrationStatuses: () => api.get('/monitoring-cache/integrations/status'),
+  getIntegrationStatus: (id) => api.get(`/monitoring-cache/integrations/${id}/status`),
+  getServiceStatuses: () => api.get('/monitoring-cache/services/status'),
+  getServiceStatus: (id) => api.get(`/monitoring-cache/services/${id}/status`),
+  clearAll: () => api.delete('/monitoring-cache/clear'),
+  clearIntegration: (id) => api.delete(`/monitoring-cache/integrations/${id}/clear`),
+  clearService: (id) => api.delete(`/monitoring-cache/services/${id}/clear`)
+};
+
 export default api;

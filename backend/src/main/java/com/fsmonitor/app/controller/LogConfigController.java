@@ -1,8 +1,8 @@
 package com.fsmonitor.app.controller;
 
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
-import com.fsmonitor.app.entity.LogMatchResult;
 import com.fsmonitor.app.repository.LogConfigRepository;
 import com.fsmonitor.app.service.LogMonitoringService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,7 +58,6 @@ public class LogConfigController {
                     // Clear matches if keywords changed
                     if (keywordsChanged) {
                         logMonitoringService.clearMatchesForConfig(id);
-                        existing.setLastMatchCount(0);
                     }
                     
                     return ResponseEntity.ok(logConfigRepository.save(existing));
@@ -98,12 +97,12 @@ public class LogConfigController {
     }
 
     @GetMapping("/matches/recent")
-    public List<LogMatchResult> getRecentMatches(@RequestParam(defaultValue = "24") int hours) {
+    public List<MonitoringCacheManager.LogMatchResultData> getRecentMatches(@RequestParam(defaultValue = "24") int hours) {
         return logMonitoringService.getRecentMatches(hours);
     }
 
     @GetMapping("/{id}/matches")
-    public List<LogMatchResult> getMatchesForConfig(@PathVariable Long id) {
+    public List<MonitoringCacheManager.LogMatchResultData> getMatchesForConfig(@PathVariable Long id) {
         return logMonitoringService.getMatchesForConfig(id);
     }
 }

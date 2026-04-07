@@ -84,12 +84,4 @@ public class IntegrationService {
         integrationRepository.save(integration);
     }
 
-    @Transactional
-    public void updateLastFileFound(Long id, java.time.LocalDateTime lastFileFound) {
-        Integration integration = integrationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Integration not found with id: " + id));
-        integration.setLastFileFound(lastFileFound);
-        integration.setUpdatedAt(java.time.LocalDateTime.now());
-        integrationRepository.save(integration);
-    }
 }

@@ -1,5 +1,6 @@
 package com.fsmonitor.app.controller;
 
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.FileMonitoringService;
 import com.fsmonitor.app.service.FileCleanupService;
@@ -26,6 +27,9 @@ public class MonitoringController {
     @Autowired
     private FileCleanupService fileCleanupService;
 
+    @Autowired
+    private MonitoringCacheManager cacheManager;
+
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getMonitoringStatus() {
         LocalDateTime now = LocalDateTime.now();
@@ -46,7 +50,8 @@ public class MonitoringController {
         
         for (Integration integration : allIntegrations) {
             if (Boolean.TRUE.equals(integration.getIsActive()) && Boolean.TRUE.equals(integration.getMonitoringEnabled())) {
-                LocalDateTime lastChecked = integration.getLastCheckedAt();
+                MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+                LocalDateTime lastChecked = cache.getLastCheckedAt();
                 long intervalSeconds = integration.getCheckIntervalMinutes() * 60;
                 
                 long secondsUntilIntegrationRun;

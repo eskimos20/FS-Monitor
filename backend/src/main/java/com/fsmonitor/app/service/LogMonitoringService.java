@@ -1,16 +1,14 @@
 package com.fsmonitor.app.service;
 
+import com.fsmonitor.app.cache.MonitoringCacheManager;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
-import com.fsmonitor.app.entity.LogMatchResult;
 import com.fsmonitor.app.repository.LogConfigRepository;
-import com.fsmonitor.app.repository.LogMatchResultRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.nio.file.*;
@@ -24,16 +22,12 @@ import java.util.stream.Collectors;
 public class LogMonitoringService {
     private static final Logger logger = LoggerFactory.getLogger(LogMonitoringService.class);
     private static final int CONTEXT_LINES = 10;
-    private static final int MAX_MATCHES_IN_MEMORY = 1000; // Keep last 1000 matches
 
     @Autowired
     private LogConfigRepository logConfigRepository;
 
     @Autowired
-    private LogMatchResultRepository logMatchResultRepository;
-
-    // In-memory cache for recent matches
-    private final List<LogMatchResult> recentMatches = new ArrayList<>();
+    private MonitoringCacheManager cacheManager;
 
     public List<LogMatch> searchLogs(Long configId) {
         Optional<LogConfig> configOpt = logConfigRepository.findById(configId);
@@ -65,7 +59,6 @@ public class LogMonitoringService {
             }
 
             config.setLastCheck(LocalDateTime.now());
-            config.setLastMatchCount(matches.size());
             logConfigRepository.save(config);
 
         } catch (Exception e) {
@@ -171,8 +164,7 @@ public class LogMonitoringService {
         return matches;
     }
 
-    @Scheduled(fixedRate = 60000) // Run every minute
-    @Transactional
+    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
     public void monitorLogs() {
         List<LogConfig> activeConfigs = logConfigRepository.findByActiveTrue();
         
@@ -190,33 +182,26 @@ public class LogMonitoringService {
                     config.getName(), config.getPath(), config.getFileTypes(), config.getKeywords(), config.isRecursive());
                 
                 // Clear old matches for this config before adding new ones
-                clearMatchesForConfig(config.getId());
+                cacheManager.clearLogCache(config.getId());
                 
                 List<LogMatch> matches = searchLogsInternal(config);
                 
-                // Save matches to in-memory cache only
-                synchronized (recentMatches) {
-                    for (LogMatch match : matches) {
-                        LogMatchResult result = new LogMatchResult();
-                        result.setLogConfig(config);
-                        result.setFileName(match.getFileName());
-                        result.setKeyword(match.getKeyword());
-                        result.setLineNumber(match.getLineNumber());
-                        result.setMatchedLine(match.getMatchedLine());
-                        result.setContextBefore(String.join("\n", match.getContextBefore()));
-                        result.setContextAfter(String.join("\n", match.getContextAfter()));
-                        result.setFoundAt(LocalDateTime.now());
-                        recentMatches.add(0, result); // Add to beginning
-                    }
-                    
-                    // Keep only last MAX_MATCHES_IN_MEMORY matches
-                    if (recentMatches.size() > MAX_MATCHES_IN_MEMORY) {
-                        recentMatches.subList(MAX_MATCHES_IN_MEMORY, recentMatches.size()).clear();
-                    }
+                // Save matches to cache
+                MonitoringCacheManager.LogCache logCache = cacheManager.getLogCache(config.getId());
+                for (LogMatch match : matches) {
+                    MonitoringCacheManager.LogMatchResultData result = new MonitoringCacheManager.LogMatchResultData();
+                    result.setLogConfigId(config.getId());
+                    result.setFileName(match.getFileName());
+                    result.setKeyword(match.getKeyword());
+                    result.setLineNumber(match.getLineNumber());
+                    result.setMatchedLine(match.getMatchedLine());
+                    result.setContextBefore(String.join("\n", match.getContextBefore()));
+                    result.setContextAfter(String.join("\n", match.getContextAfter()));
+                    result.setFoundAt(LocalDateTime.now());
+                    logCache.addMatch(result);
                 }
                 
                 config.setLastCheck(LocalDateTime.now());
-                config.setLastMatchCount(matches.size());
                 logConfigRepository.save(config);
             } catch (Exception e) {
                 logger.error("Error monitoring logs for config {}: {}", config.getName(), e.getMessage(), e);
@@ -256,35 +241,36 @@ public class LogMonitoringService {
         return matches;
     }
 
-    public List<LogMatchResult> getRecentMatches(int hours) {
+    public List<MonitoringCacheManager.LogMatchResultData> getRecentMatches(int hours) {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
-        synchronized (recentMatches) {
-            return recentMatches.stream()
+        List<MonitoringCacheManager.LogMatchResultData> allMatches = new ArrayList<>();
+        
+        List<LogConfig> configs = logConfigRepository.findAll();
+        for (LogConfig config : configs) {
+            MonitoringCacheManager.LogCache logCache = cacheManager.getLogCache(config.getId());
+            allMatches.addAll(logCache.getMatches().stream()
                     .filter(m -> m.getFoundAt() != null && m.getFoundAt().isAfter(since))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toList()));
         }
+        return allMatches;
     }
 
-    public List<LogMatchResult> getMatchesForConfig(Long configId) {
-        synchronized (recentMatches) {
-            return recentMatches.stream()
-                    .filter(m -> m.getLogConfig() != null && m.getLogConfig().getId().equals(configId))
-                    .collect(Collectors.toList());
-        }
+    public List<MonitoringCacheManager.LogMatchResultData> getMatchesForConfig(Long configId) {
+        MonitoringCacheManager.LogCache logCache = cacheManager.getLogCache(configId);
+        return new ArrayList<>(logCache.getMatches());
     }
     
     public void clearMatches() {
-        synchronized (recentMatches) {
-            recentMatches.clear();
-            logger.info("Cleared all matches from memory cache");
+        List<LogConfig> configs = logConfigRepository.findAll();
+        for (LogConfig config : configs) {
+            cacheManager.clearLogCache(config.getId());
         }
+        logger.info("Cleared all matches from cache");
     }
 
     public void clearMatchesForConfig(Long configId) {
-        synchronized (recentMatches) {
-            recentMatches.removeIf(m -> m.getLogConfig() != null && m.getLogConfig().getId().equals(configId));
-            logger.info("Cleared matches for config {} from memory cache", configId);
-        }
+        cacheManager.clearLogCache(configId);
+        logger.info("Cleared matches for config {} from cache", configId);
     }
 
     public Map<String, Object> getLogStats() {
@@ -293,7 +279,13 @@ public class LogMonitoringService {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalConfigs", configs.size());
         stats.put("activeConfigs", configs.stream().filter(LogConfig::isActive).count());
-        stats.put("totalMatches", configs.stream().mapToInt(LogConfig::getLastMatchCount).sum());
+        // Total matches now come from cache, not from config
+        int totalMatches = 0;
+        for (LogConfig config : configs) {
+            MonitoringCacheManager.LogCache cache = cacheManager.getLogCache(config.getId());
+            totalMatches += cache.getMatches().size();
+        }
+        stats.put("totalMatches", totalMatches);
         
         return stats;
     }

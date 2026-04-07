@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { integrationAPI } from '../api/axios';
+import { integrationAPI, cacheAPI } from '../api/axios';
 
 export const useIntegrations = (refreshInterval = null) => {
   const [integrations, setIntegrations] = useState([]);
@@ -8,8 +8,30 @@ export const useIntegrations = (refreshInterval = null) => {
 
   const fetchIntegrations = useCallback(async () => {
     try {
-      const response = await integrationAPI.getAll();
-      setIntegrations(response.data);
+      // Fetch integration configs and statuses in parallel
+      const [configResponse, statusResponse] = await Promise.all([
+        integrationAPI.getAll(),
+        cacheAPI.getIntegrationStatuses()
+      ]);
+      
+      const configs = configResponse.data;
+      const statuses = statusResponse.data;
+      
+      // Create a map of statuses by integration ID
+      const statusMap = {};
+      statuses.forEach(status => {
+        statusMap[status.id] = status;
+      });
+      
+      // Merge configs with statuses
+      const mergedIntegrations = configs.map(config => ({
+        ...config,
+        lastFileFound: statusMap[config.id]?.lastFileFound,
+        lastFileName: statusMap[config.id]?.lastFileName,
+        lastCheckedAt: statusMap[config.id]?.lastCheckedAt
+      }));
+      
+      setIntegrations(mergedIntegrations);
       setError('');
     } catch (error) {
       setError('Failed to load integrations');
