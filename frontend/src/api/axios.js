@@ -80,4 +80,9 @@ export const logConfigAPI = {
   getMatchesForConfig: (id) => api.get(`/log-configs/${id}/matches`)
 };
 
+export const appSettingsAPI = {
+  getCurrent: () => api.get('/app-settings'),
+  save: (data) => api.post('/app-settings', data)
+};
+
 export default api;

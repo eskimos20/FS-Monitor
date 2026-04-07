@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, Server, Mail, FileSearch, HardDrive } from 'lucide-react';
+import { Folder, Server, Mail, FileSearch, HardDrive, Settings } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import CollapsibleSection from '../components/CollapsibleSection';
 import IntegrationSettings from '../components/settings/IntegrationSettings';
@@ -7,6 +7,7 @@ import MailConfigSettings from '../components/settings/MailConfigSettings';
 import ServiceSettings from '../components/settings/ServiceSettings';
 import LogConfigSettings from '../components/settings/LogConfigSettings';
 import StorageConfigSettings from '../components/settings/StorageConfigSettings';
+import AppSettingsSection from '../components/settings/AppSettingsSection';
 
 const SettingsPage = () => {
   const {
@@ -16,6 +17,7 @@ const SettingsPage = () => {
     services,
     logConfigs,
     storageConfigs,
+    appSettings,
     loading,
     error,
     success,
@@ -27,7 +29,8 @@ const SettingsPage = () => {
     saveLogConfig,
     deleteLogConfig,
     saveStorageConfig,
-    deleteStorageConfig
+    deleteStorageConfig,
+    saveAppSettings
   } = useSettings();
 
   if (loading) {
@@ -97,6 +100,13 @@ const SettingsPage = () => {
             logConfigs={logConfigs}
             onSave={saveLogConfig}
             onDelete={deleteLogConfig}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Application Settings" icon={Settings} defaultOpen={true} storageKey="settings_application">
+          <AppSettingsSection
+            appSettings={appSettings}
+            onSave={saveAppSettings}
           />
         </CollapsibleSection>
       </div>

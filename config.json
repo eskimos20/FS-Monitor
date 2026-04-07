@@ -2,7 +2,7 @@
   "development": {
     "frontend": {
       "port": 8086,
-      "host": "localhost"
+      "host": "0.0.0.0"
     },
     "backend": {
       "port": 8085,

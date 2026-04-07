@@ -5,6 +5,7 @@ import { useServices } from '../hooks/useServices';
 import { useSystemStats } from '../hooks/useSystemStats';
 import { useMonitoringStatus } from '../hooks/useMonitoringStatus';
 import { useLogConfigs } from '../hooks/useLogConfigs';
+import { useAppSettings } from '../hooks/useAppSettings';
 import TabButton from '../components/TabButton';
 import SystemTab from '../components/dashboard/SystemTab';
 import FileIntegrationsTab from '../components/dashboard/FileIntegrationsTab';
@@ -17,7 +18,8 @@ const DashboardPage = () => {
   
   const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations();
   const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices();
-  const { systemStats } = useSystemStats(1000);
+  const { refreshIntervalMs } = useAppSettings();
+  const { systemStats } = useSystemStats(refreshIntervalMs);
   const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus();
   const { logConfigs } = useLogConfigs();
 

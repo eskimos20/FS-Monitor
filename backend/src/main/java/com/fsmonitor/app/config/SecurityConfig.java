@@ -70,6 +70,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/storage-configs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/storage-configs/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/storage-configs/**").hasRole("ADMIN")
+                        // App settings - GET is public, POST requires ADMIN
+                        .requestMatchers(HttpMethod.GET, "/api/app-settings").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/app-settings").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
 

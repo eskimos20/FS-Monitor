@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { integrationAPI, fileTypeAPI, mailConfigAPI, logConfigAPI } from '../api/axios';
+import { integrationAPI, fileTypeAPI, mailConfigAPI, logConfigAPI, appSettingsAPI } from '../api/axios';
 import api from '../api/axios';
 
 export const useSettings = () => {
@@ -9,6 +9,7 @@ export const useSettings = () => {
   const [services, setServices] = useState([]);
   const [logConfigs, setLogConfigs] = useState([]);
   const [storageConfigs, setStorageConfigs] = useState([]);
+  const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -34,6 +35,14 @@ export const useSettings = () => {
         setMailConfig(mailRes.data);
       } catch (err) {
         console.log('No mail config found');
+      }
+
+      try {
+        const appSettingsRes = await appSettingsAPI.getCurrent();
+        setAppSettings(appSettingsRes.data);
+      } catch (err) {
+        console.log('No app settings found, using defaults');
+        setAppSettings({ refreshIntervalSeconds: 5 });
       }
 
       setLoading(false);
@@ -185,6 +194,18 @@ export const useSettings = () => {
     }
   };
 
+  const saveAppSettings = async (data) => {
+    try {
+      await appSettingsAPI.save(data);
+      setSuccess('App settings saved successfully');
+      await fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to save app settings');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   return {
     integrations,
     fileTypes,
@@ -192,6 +213,7 @@ export const useSettings = () => {
     services,
     logConfigs,
     storageConfigs,
+    appSettings,
     loading,
     error,
     success,
@@ -204,6 +226,7 @@ export const useSettings = () => {
     deleteLogConfig,
     saveStorageConfig,
     deleteStorageConfig,
+    saveAppSettings,
     refreshData: fetchData
   };
 };
