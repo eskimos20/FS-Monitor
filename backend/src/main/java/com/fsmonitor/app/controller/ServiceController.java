@@ -70,6 +70,10 @@ public class ServiceController {
         existingService.setPath(serviceDetails.getPath());
         existingService.setIsActive(serviceDetails.getIsActive());
         existingService.setCheckIntervalMinutes(serviceDetails.getCheckIntervalMinutes());
+        existingService.setScheduleEnabled(serviceDetails.getScheduleEnabled());
+        existingService.setActiveDays(serviceDetails.getActiveDays());
+        existingService.setActiveStartHour(serviceDetails.getActiveStartHour());
+        existingService.setActiveEndHour(serviceDetails.getActiveEndHour());
 
         Service updatedService = serviceMonitoringService.saveService(existingService);
         return ResponseEntity.ok(updatedService);
