@@ -23,17 +23,21 @@ cp -r frontend/dist/* backend/src/main/resources/static/
 # Gå till backend katalogen
 cd backend
 
+# Extrahera version från pom.xml
+VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+echo "📌 Building version: $VERSION"
+
 # Kör Maven build för att skapa JAR
 echo "📦 Running Maven build..."
 mvn clean package -DskipTests
 
 # Kontrollera att JAR-filen skapades
-if [ -f "target/fs-monitor-backend-1.0.0.jar" ]; then
+if [ -f "target/fs-monitor-backend-${VERSION}.jar" ]; then
     echo "✅ JAR file created successfully"
     
     # Kopiera JAR-filen till root katalogen med nytt namn
     echo "📋 Copying JAR to root directory..."
-    cp target/fs-monitor-backend-1.0.0.jar ../FS-Monitor.jar
+    cp target/fs-monitor-backend-${VERSION}.jar ../FS-Monitor.jar
     
     echo "✅ JAR copied to: FS-Monitor.jar"
 else
