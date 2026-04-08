@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { systemAPI } from '../api/axios';
 
-export const useSystemStats = (refreshInterval = 1000) => {
+export const useSystemStats = (refreshInterval) => {
   const [systemStats, setSystemStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -13,7 +13,7 @@ export const useSystemStats = (refreshInterval = 1000) => {
       setError('');
     } catch (error) {
       setError('Failed to load system stats');
-      console.log('Failed to load system stats:', error.message);
+      // Error already set in state
     } finally {
       setLoading(false);
     }

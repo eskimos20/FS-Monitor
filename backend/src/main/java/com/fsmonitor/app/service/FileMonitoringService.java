@@ -1,6 +1,7 @@
 package com.fsmonitor.app.service;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager;
+import com.fsmonitor.app.cache.IntegrationCacheService;
+import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.repository.IntegrationRepository;
@@ -10,10 +11,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -29,17 +29,10 @@ public class FileMonitoringService {
     private LocalDateTime nextSchedulerRun;
 
     @jakarta.annotation.PostConstruct
-    public void init() {
-        // First run will be 60s after startup
-        nextSchedulerRun = LocalDateTime.now().plusSeconds(60);
-        
-        // Initialize cache for all integrations on startup
-        List<Integration> allIntegrations = integrationRepository.findAll();
-        LocalDateTime now = LocalDateTime.now();
-        for (Integration integration : allIntegrations) {
-            MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
-            cache.setLastCheckedAt(now);
-        }
+    public void initializeIntegrationMonitoring() {
+        logger.info("Initializing integration monitoring on startup");
+        // Note: Don't set lastCheckedAt to avoid false timestamps
+        // Cache will be populated when actual checks occur
     }
 
     @Autowired
@@ -49,31 +42,36 @@ public class FileMonitoringService {
     private NotificationService notificationService;
 
     @Autowired
-    private MonitoringCacheManager cacheManager;
+    private IntegrationCacheService integrationCacheService;
 
     @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
     public void monitorIntegrations() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
-        nextSchedulerRun = now.plusSeconds(60);
         
         logger.debug("Starting file monitoring check...");
         
         List<Integration> activeIntegrations = integrationRepository.findActiveMonitoringIntegrations();
         
+        // MEMORY CLEANUP: Clear cache entries for deleted integrations
+        cleanupDeletedIntegrations(activeIntegrations);
+        
         for (Integration integration : activeIntegrations) {
             try {
                 if (shouldCheckIntegration(integration, now)) {
-                    logger.info("Starting check for integration: {}", integration.getName());
                     long startTime = System.currentTimeMillis();
                     checkIntegration(integration, now);
                     long endTime = System.currentTimeMillis();
-                    logger.info("Completed check for integration: {} in {}ms", integration.getName(), (endTime - startTime));
+                    logger.info("Integration scan completed - Name: {} - Duration: {}ms", integration.getName(), (endTime - startTime));
                 }
             } catch (Exception e) {
                 logger.error("Error monitoring integration: " + integration.getName(), e);
             }
         }
+        
+        // Set next run AFTER all integrations have been checked
+        // This prevents race conditions where frontend sees stale nextRun time
+        nextSchedulerRun = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).plusSeconds(60);
         
         logger.debug("File monitoring check completed for {} integrations", activeIntegrations.size());
     }
@@ -93,11 +91,11 @@ public class FileMonitoringService {
             }
         }
         
-        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
-            cache.setLastCheckedAt(now);
-            return false;
+            // First check - run immediately
+            return true;
         }
         
         LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
@@ -136,9 +134,7 @@ public class FileMonitoringService {
             return;
         }
 
-        // Clear cache for this integration when a new check runs
-        cacheManager.clearIntegrationCache(integration.getId());
-        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         
         // Mark that the scheduler checked this integration at this cycle's timestamp
         cache.setLastCheckedAt(now);
@@ -200,95 +196,87 @@ public class FileMonitoringService {
         return findLatestFileByExtensions(directory, extensions);
     }
 
-    private boolean isHidden(Path path) {
-        return path.getFileName() != null && path.getFileName().toString().startsWith(".");
-    }
-
+    
     private File findLatestFileAllTypes(File directory) {
-        logger.debug("Scanning all files in directory: {}", directory.getAbsolutePath());
-        File latestFile = null;
-        long latestTime = 0;
+        logger.debug("Finding latest file using Linux find command in directory: {}", directory.getAbsolutePath());
         
         try {
-            List<File> files = Files.walk(directory.toPath())
-                .filter(p -> !isHidden(p))
-                .filter(Files::isRegularFile)
-                .map(Path::toFile)
-                .collect(Collectors.toList());
+            // Use Linux find command to find the most recently modified file
+            String command = String.format("find '%s' -type f -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
+                directory.getAbsolutePath().replace("'", "'\"'\"'"));
             
-            logger.debug("Found {} total files in directory", files.size());
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
             
-            for (File file : files) {
-                if (file.lastModified() > latestTime) {
-                    latestTime = file.lastModified();
-                    latestFile = file;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line = reader.readLine();
+                
+                int exitCode = process.waitFor();
+                if (exitCode == 0 && line != null && !line.trim().isEmpty()) {
+                    File latestFile = new File(line.trim());
+                    if (latestFile.exists()) {
+                        logger.debug("Latest file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
+                        return latestFile;
+                    }
                 }
+                
+                logger.debug("No files found in directory");
+                return null;
             }
             
-            if (latestFile != null) {
-                logger.debug("Latest file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
-            } else {
-                logger.debug("No files found in directory");
-            }
-        } catch (IOException e) {
-            logger.error("Error walking directory: {}", directory.getAbsolutePath(), e);
+        } catch (Exception e) {
+            logger.warn("Failed to find latest file using Linux command: {}", e.getMessage());
+            return null;
         }
-        
-        return latestFile;
     }
 
     private File findLatestFileByExtensions(File directory, Set<String> extensions) {
-        logger.debug("Scanning files with extensions {} in directory: {}", extensions, directory.getAbsolutePath());
-        File latestFile = null;
-        long latestTime = 0;
+        logger.debug("Finding latest file with extensions {} using Linux find command in directory: {}", extensions, directory.getAbsolutePath());
         
         try {
-            List<File> files = Files.walk(directory.toPath())
-                .filter(p -> !isHidden(p))
-                .filter(Files::isRegularFile)
-                .map(Path::toFile)
-                .filter(file -> hasMatchingExtension(file, extensions))
-                .collect(Collectors.toList());
+            // Build extension pattern for find command
+            String extensionPattern = extensions.stream()
+                .map(ext -> ext.startsWith(".") ? ext : "." + ext)
+                .map(ext -> "-name '*" + ext + "'")
+                .collect(Collectors.joining(" -o "));
             
-            logger.debug("Found {} matching files", files.size());
+            String command = String.format("find '%s' -type f \\( %s \\) -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
+                directory.getAbsolutePath().replace("'", "'\"'\"'"), extensionPattern);
             
-            for (File file : files) {
-                if (file.lastModified() > latestTime) {
-                    latestTime = file.lastModified();
-                    latestFile = file;
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line = reader.readLine();
+                
+                int exitCode = process.waitFor();
+                if (exitCode == 0 && line != null && !line.trim().isEmpty()) {
+                    File latestFile = new File(line.trim());
+                    if (latestFile.exists()) {
+                        logger.debug("Latest matching file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
+                        return latestFile;
+                    }
                 }
+                
+                logger.debug("No matching files found");
+                return null;
             }
             
-            if (latestFile != null) {
-                logger.debug("Latest matching file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
-            } else {
-                logger.debug("No matching files found");
-            }
-        } catch (IOException e) {
-            logger.error("Error walking directory: {}", directory.getAbsolutePath(), e);
+        } catch (Exception e) {
+            logger.warn("Failed to find latest file with extensions using Linux command: {}", e.getMessage());
+            return null;
         }
-        
-        return latestFile;
     }
 
-    private boolean hasMatchingExtension(File file, Set<String> extensions) {
-        String fileName = file.getName();
-        int lastDotIndex = fileName.lastIndexOf('.');
-        
-        if (lastDotIndex == -1) {
-            return extensions.contains(""); // No extension
-        }
-        
-        String extension = fileName.substring(lastDotIndex).toLowerCase();
-        return extensions.contains(extension);
-    }
-
+    
     public boolean isIntegrationActive(Integration integration) {
         if (!integration.getIsActive() || !integration.getMonitoringEnabled()) {
             return false;
         }
         
-        MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+        IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         LocalDateTime lastFileFound = cache.getLastFileFound();
         if (lastFileFound == null) {
             return false;
@@ -296,5 +284,25 @@ public class FileMonitoringService {
         
         LocalDateTime threshold = lastFileFound.plusMinutes(integration.getThresholdMinutes());
         return LocalDateTime.now().isBefore(threshold);
+    }
+    
+    /**
+     * MEMORY CLEANUP: Remove cache entries for deleted integrations
+     * This prevents memory leaks when integrations are deleted from database
+     */
+    private void cleanupDeletedIntegrations(List<Integration> activeIntegrations) {
+        // Get all active integration IDs
+        Set<Long> activeIntegrationIds = activeIntegrations.stream()
+            .map(Integration::getId)
+            .collect(Collectors.toSet());
+        
+        // Clear cache entries for deleted integrations
+        Set<Long> cachedIntegrationIds = integrationCacheService.getAllCachedIds();
+        for (Long cachedId : cachedIntegrationIds) {
+            if (!activeIntegrationIds.contains(cachedId)) {
+                integrationCacheService.clearCache(cachedId);
+                logger.debug("Cleared cache for deleted integration ID: {}", cachedId);
+            }
+        }
     }
 }

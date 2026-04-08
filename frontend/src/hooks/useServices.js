@@ -36,7 +36,7 @@ export const useServices = (refreshInterval = null) => {
       setError('');
     } catch (error) {
       setError('Failed to load services');
-      console.log('Failed to load services:', error.message);
+      // Error already set in state
     } finally {
       setLoading(false);
     }

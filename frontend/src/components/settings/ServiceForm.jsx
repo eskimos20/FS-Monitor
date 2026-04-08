@@ -439,107 +439,107 @@ const ServiceForm = ({ service, onSave, onClose }) => {
             </div>
           )}
 
-          {/* Test Connection Section */}
-          {formData.type === 'CUSTOM' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="text-sm font-medium text-gray-900">Test Connection</h4>
-                  <p className="text-xs text-gray-600">Test which methods work with {formData.host}:{formData.port}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={testing || !formData.host || !formData.port}
-                  className="btn-secondary flex items-center text-sm"
-                >
-                  <Zap className="h-4 w-4 mr-1" />
-                  {testing ? 'Testing...' : 'Test All Methods'}
-                </button>
+          {/* Test Connection Section - Available for all service types */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-sm font-medium text-gray-900">Test Connection</h4>
+                <p className="text-xs text-gray-600">Test which methods work with {formData.host}:{formData.port}</p>
               </div>
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={testing || !formData.host || !formData.port}
+                className="btn-secondary flex items-center text-sm"
+              >
+                <Zap className="h-4 w-4 mr-1" />
+                {testing ? 'Testing...' : 'Test All Methods'}
+              </button>
+            </div>
 
-              {testResult && !testResult.error && (
-                <div className="space-y-2">
-                  <div className="bg-white rounded-lg p-2 mb-3">
-                    <p className="text-xs font-medium text-gray-700">
-                      ✨ Recommended: <span className="text-primary-600">{testResult.recommended}</span>
-                    </p>
-                  </div>
+            {testResult && !testResult.error && (
+              <div className="space-y-2">
+                <div className="bg-white rounded-lg p-2 mb-3">
+                  <p className="text-xs font-medium text-gray-700">
+                    ✨ Recommended: <span className="text-primary-600">{testResult.recommended}</span>
+                  </p>
+                </div>
 
+                {formData.type === 'CUSTOM' && (
                   <p className="text-xs font-medium text-gray-700 mb-2">Select a method to use:</p>
-                  
-                  {testResult.methods.map((method, index) => (
-                    <div
-                      key={index}
-                      onClick={() => handleSelectMethod(method.method)}
-                      className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                        formData.checkMethod === method.method
-                          ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
-                          : method.success
-                          ? 'border-green-200 bg-white hover:bg-green-50'
-                          : 'border-red-200 bg-white opacity-75'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-3 flex-1">
-                          {method.success ? (
-                            <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
-                          )}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-gray-900">{method.name}</p>
-                              {testResult.recommended === method.method && (
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                                  Recommended
-                                </span>
-                              )}
-                              {formData.checkMethod === method.method && (
-                                <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
-                                  Selected
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">{method.description}</p>
-                            <div className="mt-1 flex items-center gap-3">
-                              <p className={`text-xs font-medium ${method.success ? 'text-green-600' : 'text-red-600'}`}>
-                                {method.success ? '✓ Success' : '✗ Failed'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Tested with {formData.host}:{formData.port}
-                              </p>
-                              {method.success && (
-                                <div className="flex items-center text-xs text-gray-500">
-                                  <Clock className="h-3 w-3 mr-1" />
-                                  {method.responseTime}ms
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-600 mt-1 italic">{method.message}</p>
+                )}
+                
+                {testResult.methods.map((method, index) => (
+                  <div
+                    key={index}
+                    onClick={() => formData.type === 'CUSTOM' ? handleSelectMethod(method.method) : null}
+                    className={`p-3 rounded-lg border ${formData.type === 'CUSTOM' ? 'cursor-pointer' : ''} transition-colors ${
+                      formData.checkMethod === method.method && formData.type === 'CUSTOM'
+                        ? 'border-primary-500 bg-primary-50 ring-2 ring-primary-200'
+                        : method.success
+                        ? 'border-green-200 bg-white hover:bg-green-50'
+                        : 'border-red-200 bg-white opacity-75'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3 flex-1">
+                        {method.success ? (
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-gray-900">{method.name}</p>
+                            {testResult.recommended === method.method && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                                Recommended
+                              </span>
+                            )}
+                            {formData.checkMethod === method.method && formData.type === 'CUSTOM' && (
+                              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
+                                Selected
+                              </span>
+                            )}
                           </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{method.description}</p>
+                          <div className="mt-1 flex items-center gap-3">
+                            <p className={`text-xs font-medium ${method.success ? 'text-green-600' : 'text-red-600'}`}>
+                              {method.success ? '✓ Success' : '✗ Failed'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Tested with {formData.host}:{formData.port}
+                            </p>
+                            {method.success && (
+                              <div className="flex items-center text-xs text-gray-500">
+                                <Clock className="h-3 w-3 mr-1" />
+                                {method.responseTime}ms
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1 italic">{method.message}</p>
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {testResult && testResult.error && (
-                <div className="bg-red-50 border border-red-200 rounded p-3">
-                  <p className="text-sm text-red-600">{testResult.error}</p>
-                </div>
-              )}
+            {testResult && testResult.error && (
+              <div className="bg-red-50 border border-red-200 rounded p-3">
+                <p className="text-sm text-red-600">{testResult.error}</p>
+              </div>
+            )}
 
-              {!testResult && (
-                <div className="text-center py-4">
-                  <p className="text-xs text-gray-600">
-                    Click "Test All Methods" to automatically detect which protocols work
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+            {!testResult && (
+              <div className="text-center py-4">
+                <p className="text-xs text-gray-600">
+                  Click "Test All Methods" to automatically detect which protocols work
+                </p>
+              </div>
+            )}
+          </div>
 
           {formData.type === 'CUSTOM' && !testResult && (
             <div>

@@ -1,6 +1,7 @@
 package com.fsmonitor.app.service;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager;
+import com.fsmonitor.app.cache.ServiceCacheService;
+import com.fsmonitor.app.cache.ServiceCacheService.ServiceCache;
 import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.entity.ServiceStatus;
 import com.fsmonitor.app.entity.ServiceType;
@@ -12,9 +13,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class ServiceMonitoringService {
@@ -27,7 +27,7 @@ public class ServiceMonitoringService {
     private NotificationService notificationService;
 
     @Autowired
-    private MonitoringCacheManager cacheManager;
+    private ServiceCacheService serviceCacheService;
 
     private final Map<ServiceType, ServiceChecker> checkers;
 
@@ -53,15 +53,10 @@ public class ServiceMonitoringService {
     }
 
     @jakarta.annotation.PostConstruct
-    public void init() {
-        // Initialize cache for all services
-        List<Service> allServices = serviceRepository.findAll();
-        LocalDateTime now = LocalDateTime.now();
-        for (Service service : allServices) {
-            MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
-            cache.setLastCheckedAt(now);
-            cache.setStatus(ServiceStatus.UNKNOWN);
-        }
+    public void initializeServiceMonitoring() {
+        logger.info("Initializing service monitoring on startup");
+        // Note: Don't set lastCheckedAt or status to avoid false timestamps
+        // Cache will be populated when actual checks occur
     }
 
     @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
@@ -71,6 +66,9 @@ public class ServiceMonitoringService {
         logger.debug("Starting service monitoring check...");
         
         List<Service> activeServices = serviceRepository.findByIsActiveTrue();
+        
+        // MEMORY CLEANUP: Clear cache entries for deleted services
+        cleanupDeletedServices(activeServices);
         
         for (Service service : activeServices) {
             try {
@@ -97,11 +95,11 @@ public class ServiceMonitoringService {
             }
         }
         
-        MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
+        ServiceCache cache = serviceCacheService.getCache(service.getId());
         LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
-            cache.setLastCheckedAt(now);
-            return false;
+            // First check - run immediately
+            return true;
         }
         
         LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
@@ -147,11 +145,8 @@ public class ServiceMonitoringService {
     }
 
     private void checkService(Service service, LocalDateTime now) {
-        logger.info("Running check for service: {}", service.getName());
-        
-        // Clear cache for this service when a new check runs
-        cacheManager.clearServiceCache(service.getId());
-        MonitoringCacheManager.ServiceCache cache = cacheManager.getServiceCache(service.getId());
+        long startTime = System.currentTimeMillis();
+        ServiceCache cache = serviceCacheService.getCache(service.getId());
         
         ServiceChecker checker = getCheckerForService(service);
         if (checker == null) {
@@ -171,6 +166,9 @@ public class ServiceMonitoringService {
                     cache.setStatus(ServiceStatus.OFFLINE);
                     cache.setLastError("Service check failed");
                 }
+                
+                long endTime = System.currentTimeMillis();
+                logger.info("Service scan completed - Name: {} - Duration: {}ms", service.getName(), (endTime - startTime));
             } catch (Exception e) {
                 cache.setStatus(ServiceStatus.OFFLINE);
                 cache.setLastError(e.getMessage());
@@ -205,5 +203,25 @@ public class ServiceMonitoringService {
 
     public void deleteService(Long id) {
         serviceRepository.deleteById(id);
+    }
+    
+    /**
+     * MEMORY CLEANUP: Remove cache entries for deleted services
+     * This prevents memory leaks when services are deleted from database
+     */
+    private void cleanupDeletedServices(List<Service> activeServices) {
+        // Get all active service IDs
+        Set<Long> activeServiceIds = activeServices.stream()
+            .map(Service::getId)
+            .collect(Collectors.toSet());
+        
+        // Clear cache entries for deleted services
+        Set<Long> cachedServiceIds = serviceCacheService.getAllCachedIds();
+        for (Long cachedId : cachedServiceIds) {
+            if (!activeServiceIds.contains(cachedId)) {
+                serviceCacheService.clearCache(cachedId);
+                logger.debug("Cleared cache for deleted service ID: {}", cachedId);
+            }
+        }
     }
 }

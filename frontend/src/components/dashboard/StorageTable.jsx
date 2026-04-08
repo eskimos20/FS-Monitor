@@ -88,8 +88,11 @@ const StorageTable = () => {
   }
 
   const storageConfigs = Object.values(storageData);
-
-  if (storageConfigs.length === 0) {
+  
+  // Get system-wide storage data (cache ID -1)
+  const systemStorage = storageData['-1'];
+  
+  if (storageConfigs.length === 0 && !systemStorage) {
     return (
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center space-x-2 mb-4">
@@ -104,7 +107,62 @@ const StorageTable = () => {
   return (
     <CollapsibleCard title="Storage Monitoring" icon={HardDrive} defaultOpen={true} storageKey="dashboard_storage">
       <div className="p-6 space-y-6">
-        {storageConfigs.map(({ config, info, largestFiles, diskSpace }) => {
+        
+        {/* System-wide Storage Summary */}
+        {systemStorage && systemStorage.diskSpace && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6 mb-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <HardDrive className="h-6 w-6 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-800">System-wide Storage</h3>
+              <span className="text-sm text-gray-500">(excluding /mnt)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white bg-opacity-70 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-1">Total Storage</p>
+                <p className="text-xl font-bold text-blue-600">
+                  {formatBytes(systemStorage.diskSpace.totalBytes)}
+                </p>
+              </div>
+              <div className="bg-white bg-opacity-70 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-1">Free Space</p>
+                <p className="text-xl font-bold text-green-600">
+                  {formatBytes(systemStorage.diskSpace.usableBytes)}
+                </p>
+              </div>
+              <div className="bg-white bg-opacity-70 rounded-lg p-4">
+                <p className="text-sm text-gray-600 mb-1">Used Space</p>
+                <p className="text-xl font-bold text-orange-600">
+                  {formatBytes(systemStorage.diskSpace.totalBytes - systemStorage.diskSpace.usableBytes)}
+                </p>
+              </div>
+            </div>
+            
+            {/* Mount Points Details */}
+            {systemStorage.info && systemStorage.info.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-blue-200">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Mount Points:</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {systemStorage.info.map((mount, index) => (
+                    <div key={index} className="text-sm bg-white bg-opacity-50 rounded px-3 py-2">
+                      <span className="font-medium text-gray-700">{mount.path}:</span>
+                      <span className="ml-2 text-gray-600">{formatBytes(mount.totalSizeBytes)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Separator between system-wide and individual configs */}
+        {systemStorage && storageConfigs.filter(({ config }) => config.id !== -1).length > 0 && (
+          <div className="border-t border-gray-200 pt-6">
+            <h4 className="text-md font-semibold text-gray-700 mb-4">Individual Storage Configurations</h4>
+          </div>
+        )}
+        
+        {/* Individual Storage Configs */}
+        {storageConfigs.filter(({ config }) => config.id !== -1).map(({ config, info, largestFiles, diskSpace }) => {
           const totalSize = info?.reduce((sum, item) => sum + item.totalSizeBytes, 0) || 0;
           const totalFiles = info?.reduce((sum, item) => sum + item.fileCount, 0) || 0;
           const totalDirs = info?.reduce((sum, item) => sum + item.directoryCount, 0) || 0;

@@ -1,6 +1,7 @@
 package com.fsmonitor.app.controller;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager;
+import com.fsmonitor.app.cache.IntegrationCacheService;
+import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.FileMonitoringService;
 import com.fsmonitor.app.service.FileCleanupService;
@@ -28,7 +29,7 @@ public class MonitoringController {
     private FileCleanupService fileCleanupService;
 
     @Autowired
-    private MonitoringCacheManager cacheManager;
+    private IntegrationCacheService integrationCacheService;
 
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getMonitoringStatus() {
@@ -50,14 +51,14 @@ public class MonitoringController {
         
         for (Integration integration : allIntegrations) {
             if (Boolean.TRUE.equals(integration.getIsActive()) && Boolean.TRUE.equals(integration.getMonitoringEnabled())) {
-                MonitoringCacheManager.IntegrationCache cache = cacheManager.getIntegrationCache(integration.getId());
+                IntegrationCache cache = integrationCacheService.getCache(integration.getId());
                 LocalDateTime lastChecked = cache.getLastCheckedAt();
                 long intervalSeconds = integration.getCheckIntervalMinutes() * 60;
                 
                 long secondsUntilIntegrationRun;
                 if (lastChecked == null) {
-                    // Never been checked - will run on next scheduler cycle
-                    secondsUntilIntegrationRun = secondsUntilNextRun;
+                    // Never been checked - show the configured interval time
+                    secondsUntilIntegrationRun = intervalSeconds;
                 } else {
                     LocalDateTime nextIntegrationRun = lastChecked.plusMinutes(integration.getCheckIntervalMinutes());
                     secondsUntilIntegrationRun = Duration.between(now, nextIntegrationRun).getSeconds();

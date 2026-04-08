@@ -62,7 +62,8 @@ export const formatIntegrationTimer = (integration, integrationTimers) => {
     return '--';
   }
   
-  const totalSeconds = integrationTimers[integration.id] || 0;
+  const totalSeconds = integrationTimers[integration.id];
+  if (totalSeconds === null || totalSeconds === undefined) return 'Loading...';
   if (totalSeconds === 0) return '...';
   
   // Calculate time units

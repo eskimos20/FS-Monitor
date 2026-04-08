@@ -4,7 +4,7 @@ import { useLogConfigs } from '../../hooks/useLogConfigs';
 import LogConfigForm from '../../components/settings/LogConfigForm';
 
 const LogConfigsPage = () => {
-  const { logConfigs, loading, error, createLogConfig, updateLogConfig, deleteLogConfig, toggleLogConfig } = useLogConfigs();
+  const { logConfigs, loading, error, createLogConfig, updateLogConfig, deleteLogConfig, toggleLogConfig } = useLogConfigs(60000);
   const [showForm, setShowForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -103,20 +103,6 @@ const LogConfigsPage = () => {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h3 className="text-lg font-semibold text-gray-900">{config.name}</h3>
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded ${
-                        config.active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {config.active ? 'Active' : 'Inactive'}
-                    </span>
-                    {config.lastMatchCount > 0 && (
-                      <span className="px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800">
-                        {config.lastMatchCount} matches
-                      </span>
-                    )}
                   </div>
 
                   <div className="space-y-2 text-sm text-gray-600">

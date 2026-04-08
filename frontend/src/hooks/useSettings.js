@@ -34,14 +34,14 @@ export const useSettings = () => {
         const mailRes = await mailConfigAPI.getCurrent();
         setMailConfig(mailRes.data);
       } catch (err) {
-        console.log('No mail config found');
+        // No mail config - using defaults
       }
 
       try {
         const appSettingsRes = await appSettingsAPI.getCurrent();
         setAppSettings(appSettingsRes.data);
       } catch (err) {
-        console.log('No app settings found, using defaults');
+        // No app settings - using defaults
         setAppSettings({ refreshIntervalSeconds: 5 });
       }
 

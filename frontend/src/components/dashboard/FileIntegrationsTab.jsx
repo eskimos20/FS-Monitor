@@ -55,7 +55,11 @@ const FileIntegrationsTab = ({
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center space-x-2 text-sm text-gray-500">
               <Activity className="h-4 w-4" />
-              <span>Next check in {secondsUntilNextRun}s</span>
+              <span>
+                {secondsUntilNextRun !== null 
+                  ? `Next check in ${secondsUntilNextRun}s` 
+                  : 'Loading...'}
+              </span>
             </div>
           </div>
 

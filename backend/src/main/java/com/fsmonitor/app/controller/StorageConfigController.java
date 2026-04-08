@@ -3,13 +3,13 @@ package com.fsmonitor.app.controller;
 import com.fsmonitor.app.entity.StorageConfig;
 import com.fsmonitor.app.repository.StorageConfigRepository;
 import com.fsmonitor.app.service.StorageMonitoringService;
-import com.fsmonitor.app.service.StorageCacheService;
+import com.fsmonitor.app.cache.StorageCacheService;
+import com.fsmonitor.app.cache.StorageCacheService.StorageCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,12 +20,12 @@ public class StorageConfigController {
     
     @Autowired
     private StorageConfigRepository storageConfigRepository;
+        
+    @Autowired
+    private StorageMonitoringService storageMonitoringService;
     
     @Autowired
     private StorageCacheService storageCacheService;
-    
-    @Autowired
-    private StorageMonitoringService storageMonitoringService;
     
     @GetMapping
     public List<StorageConfig> getAllStorageConfigs() {
@@ -72,8 +72,6 @@ public class StorageConfigController {
     public ResponseEntity<Void> deleteStorageConfig(@PathVariable Long id) {
         return storageConfigRepository.findById(id)
             .map(config -> {
-                // Clear cache data for this config
-                storageCacheService.clearStorageData(id);
                 // Delete the config
                 storageConfigRepository.delete(config);
                 return ResponseEntity.ok().<Void>build();
@@ -81,44 +79,45 @@ public class StorageConfigController {
             .orElse(ResponseEntity.notFound().build());
     }
     
-    @GetMapping("/{id}/info")
-    public List<?> getStorageInfo(@PathVariable Long id) {
-        return storageCacheService.getStorageInfo(id);
-    }
-    
-    @GetMapping("/{id}/largest-files")
-    public List<?> getLargestFiles(@PathVariable Long id) {
-        return storageCacheService.getLargestFiles(id);
-    }
-    
     @GetMapping("/dashboard")
     public Map<String, Object> getDashboardData() {
         List<StorageConfig> configs = storageConfigRepository.findByActiveTrue();
         Map<String, Object> result = new HashMap<>();
         
-        // Get all cached data at once for efficiency
-        Map<String, Object> allCachedData = storageCacheService.getAllStorageData();
+        // Add system-wide storage data first (ID: -1)
+        Map<String, Object> systemStorageData = new HashMap<>();
+        StorageCacheService.StorageCache systemCache = storageCacheService.getCache(-1L);
+        if (systemCache != null && !systemCache.getStorageInfoList().isEmpty()) {
+            systemStorageData.put("config", createSystemConfig());
+            systemStorageData.put("info", systemCache.getStorageInfoList());
+            systemStorageData.put("largestFiles", systemCache.getLargestFiles());
+            systemStorageData.put("diskSpace", systemCache.getDiskSpace());
+            result.put("-1", systemStorageData);
+        }
         
+        // Get actual data from cache for each config
         for (StorageConfig config : configs) {
             Map<String, Object> configData = new HashMap<>();
             configData.put("config", config);
             
-            String configId = config.getId().toString();
-            if (allCachedData.containsKey(configId)) {
-                Map<String, Object> cachedData = (Map<String, Object>) allCachedData.get(configId);
-                configData.put("info", cachedData.get("info"));
-                configData.put("largestFiles", cachedData.get("largestFiles"));
-                configData.put("diskSpace", cachedData.get("diskSpace"));
-            } else {
-                // No cached data yet
-                configData.put("info", Collections.emptyList());
-                configData.put("largestFiles", Collections.emptyList());
-                configData.put("diskSpace", null);
-            }
+            // Get data from storage cache service
+            StorageCacheService.StorageCache cache = storageCacheService.getCache(config.getId());
+            configData.put("info", cache.getStorageInfoList());
+            configData.put("largestFiles", cache.getLargestFiles());
+            configData.put("diskSpace", cache.getDiskSpace());
             
-            result.put(configId, configData);
+            result.put(config.getId().toString(), configData);
         }
         
         return result;
+    }
+    
+    private StorageConfig createSystemConfig() {
+        StorageConfig systemConfig = new StorageConfig();
+        systemConfig.setId(-1L);
+        systemConfig.setName("System Storage");
+        systemConfig.setPath("/");
+        systemConfig.setActive(true);
+        return systemConfig;
     }
 }

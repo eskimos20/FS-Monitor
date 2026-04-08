@@ -12,7 +12,7 @@ export const useAppSettings = () => {
       const response = await appSettingsAPI.getCurrent();
       setAppSettings(response.data);
     } catch (error) {
-      console.log('Failed to load app settings, using defaults');
+      // Failed to load - using defaults
       setAppSettings({ refreshIntervalSeconds: DEFAULT_REFRESH_INTERVAL_SECONDS });
     } finally {
       setLoading(false);

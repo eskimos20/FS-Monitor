@@ -1,6 +1,6 @@
 package com.fsmonitor.app.controller;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager;
+import com.fsmonitor.app.cache.MonitoringCacheManager.LogMatchResultData;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
 import com.fsmonitor.app.repository.LogConfigRepository;
@@ -8,6 +8,8 @@ import com.fsmonitor.app.service.LogMonitoringService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,8 @@ import java.util.Map;
 @RequestMapping("/api/log-configs")
 @CrossOrigin(origins = "*")
 public class LogConfigController {
+
+    private static final Logger logger = LoggerFactory.getLogger(LogConfigController.class);
 
     @Autowired
     private LogConfigRepository logConfigRepository;
@@ -97,12 +101,16 @@ public class LogConfigController {
     }
 
     @GetMapping("/matches/recent")
-    public List<MonitoringCacheManager.LogMatchResultData> getRecentMatches(@RequestParam(defaultValue = "24") int hours) {
-        return logMonitoringService.getRecentMatches(hours);
+    public List<LogMatchResultData> getRecentMatches(@RequestParam(defaultValue = "24") int hours) {
+        List<LogMatchResultData> matches = logMonitoringService.getRecentMatches(hours);
+        return matches;
     }
 
     @GetMapping("/{id}/matches")
-    public List<MonitoringCacheManager.LogMatchResultData> getMatchesForConfig(@PathVariable Long id) {
-        return logMonitoringService.getMatchesForConfig(id);
+    public List<LogMatchResultData> getMatchesForConfig(@PathVariable Long id) {
+        logger.info("Getting matches for config ID: {}", id);
+        List<LogMatchResultData> matches = logMonitoringService.getMatchesForConfig(id);
+        logger.info("Returning {} matches for config ID: {}", matches.size(), id);
+        return matches;
     }
 }

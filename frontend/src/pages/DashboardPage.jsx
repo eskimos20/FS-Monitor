@@ -17,11 +17,11 @@ const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('system');
   
   const { refreshIntervalMs } = useAppSettings();
-  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(refreshIntervalMs);
-  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(refreshIntervalMs);
+  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(60000);
+  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(60000);
   const { systemStats } = useSystemStats(refreshIntervalMs);
-  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(refreshIntervalMs);
-  const { logConfigs } = useLogConfigs(refreshIntervalMs);
+  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(60000);
+  const { logConfigs } = useLogConfigs(60000);
 
   return (
     <div className="space-y-6">
