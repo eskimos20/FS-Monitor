@@ -134,7 +134,7 @@ const LogConfigsPage = () => {
                         ? 'text-green-600 hover:bg-green-50'
                         : 'text-gray-400 hover:bg-gray-50'
                     }`}
-                    title={config.active ? 'Deactivate' : 'Activate'}
+                    title="Toggle Status"
                   >
                     <Power className="h-5 w-5" />
                   </button>

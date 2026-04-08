@@ -131,8 +131,8 @@ public class StorageMonitoringService {
     private List<StorageInfoData> getDiskSpaceInfo() {
         List<StorageInfoData> result = new ArrayList<>();
         try {
-            // Use df -h to get disk space information
-            ProcessBuilder pb = new ProcessBuilder("df", "-h");
+            // Use df -h with built-in exclusion flags for local filesystems only
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "df -h -l -x tmpfs -x devtmpfs -x efivarfs");
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
@@ -145,21 +145,16 @@ public class StorageMonitoringService {
                         continue;
                     }
                     
+                    // Skip total line
+                    if (line.trim().startsWith("total")) {
+                        continue;
+                    }
+                    
                     String[] parts = line.trim().split("\\s+");
                     if (parts.length >= 6) {
                         String mountPath = parts[5]; // Mounted on path
                         
-                        // Skip excluded mount points
-                        if (mountPath.startsWith("/mnt/") || 
-                            mountPath.equals("/mnt") ||
-                            mountPath.startsWith("/proc") || 
-                            mountPath.startsWith("/sys") || 
-                            mountPath.startsWith("/dev") ||
-                            mountPath.startsWith("/run") ||
-                            mountPath.startsWith("/snap")) {
-                            continue;
-                        }
-                        
+                                                
                         StorageInfoData info = new StorageInfoData();
                         info.setPath(mountPath);
                         info.setFileCount(0); // Not available from df
@@ -185,8 +180,8 @@ public class StorageMonitoringService {
     private DiskSpaceData getSystemDiskSpace() {
         DiskSpaceData diskSpace = new DiskSpaceData();
         try {
-            // Get total disk space for root filesystem
-            ProcessBuilder pb = new ProcessBuilder("df", "/");
+            // Get total disk space using --total flag
+            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "df -h -l -x tmpfs -x devtmpfs -x efivarfs --total");
             pb.redirectErrorStream(true);
             Process process = pb.start();
             
@@ -199,12 +194,16 @@ public class StorageMonitoringService {
                         continue;
                     }
                     
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 4) {
-                        diskSpace.setTotalBytes(parseSize(parts[1]));
-                        diskSpace.setUsableBytes(parseSize(parts[3])); // Available space
-                        diskSpace.setScannedAt(LocalDateTime.now());
-                        break;
+                    // Look for the total line
+                    if (line.trim().startsWith("total")) {
+                        String[] parts = line.trim().split("\\s+");
+                        if (parts.length >= 4) {
+                            // parts[1] = Size, parts[2] = Used, parts[3] = Avail
+                            diskSpace.setTotalBytes(parseSize(parts[1]));
+                            diskSpace.setUsableBytes(parseSize(parts[3])); // Available space
+                            diskSpace.setScannedAt(LocalDateTime.now());
+                            break;
+                        }
                     }
                 }
             }

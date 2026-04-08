@@ -52,18 +52,6 @@ const LogConfigSettings = ({ logConfigs, onSave, onDelete }) => {
                 </p>
               </div>
               <div className="flex items-center space-x-2">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                  logConfig.active 
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {logConfig.active ? 'ACTIVE' : 'INACTIVE'}
-                </span>
-                {logConfig.lastMatchCount > 0 && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                    {logConfig.lastMatchCount} matches
-                  </span>
-                )}
                 <button
                   onClick={() => handleEdit(logConfig)}
                   className="p-2 text-gray-600 hover:text-primary-600"

@@ -202,3 +202,9 @@ docs/
 
 # Scripts (keep .gitignore)
 deploy.sh
+
+# Backend static build artifacts
+backend/src/main/resources/static/assets/*.js
+backend/src/main/resources/static/assets/*.css
+backend/src/main/resources/static/assets/*.map
+backend/src/main/resources/static/index.html
