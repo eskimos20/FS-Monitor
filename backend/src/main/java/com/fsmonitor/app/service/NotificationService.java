@@ -50,7 +50,8 @@ public class NotificationService {
 
             emailSent = emailService.sendEmail(subject, body);
         } catch (Exception e) {
-            logger.warn("Could not send email notification for integration {}: {}", integrationName, e.getMessage());
+            logger.warn("Failed to send integration {} notification: {}", integrationName, e.getMessage());
+            return false;
         }
         
         if (emailSent) {
@@ -60,8 +61,7 @@ public class NotificationService {
             logger.info("Integration {} inactive notification sent", integrationName);
             return true;
         } else {
-            logger.warn("Failed to send integration {} notification (no mail config)", integrationName);
-            // Don't fail the entire transaction if email fails
+            logger.warn("Failed to send integration {} notification: Email send failed", integrationName);
             return false;
         }
     }

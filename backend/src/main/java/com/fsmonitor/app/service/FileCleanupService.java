@@ -53,6 +53,7 @@ public class FileCleanupService {
     }
 
     private void cleanupIntegrationFiles(Integration integration) {
+        long startTime = System.currentTimeMillis();
         String path = integration.getPath();
         File directory = new File(path);
         
@@ -65,6 +66,9 @@ public class FileCleanupService {
         long cutoffTime = cutoffDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         
         Set<String> extensionsToClean = getExtensionsToClean(integration);
+        
+        int deletedFiles = 0;
+        int failedDeletes = 0;
         
         try {
             List<File> allFiles = Files.walk(directory.toPath())
@@ -80,13 +84,21 @@ public class FileCleanupService {
             for (File file : filesToDelete) {
                 try {
                     Files.delete(file.toPath());
+                    deletedFiles++;
                 } catch (IOException e) {
+                    failedDeletes++;
                     logger.warn("Failed to delete file: {}", file.getAbsolutePath(), e);
                 }
             }
             
             // Clean up empty directories (except root)
-            cleanupEmptyDirectories(directory, directory);
+            int deletedDirs = cleanupEmptyDirectories(directory, directory);
+            
+            long endTime = System.currentTimeMillis();
+            if (deletedFiles > 0 || deletedDirs > 0) {
+                logger.info("File cleanup completed - Name: {} - Deleted files: {} - Deleted dirs: {} - Failed: {} - Duration: {}ms", 
+                    integration.getName(), deletedFiles, deletedDirs, failedDeletes, (endTime - startTime));
+            }
                 
         } catch (IOException e) {
             logger.error("Error walking directory during cleanup: " + directory.getAbsolutePath(), e);
