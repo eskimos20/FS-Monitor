@@ -345,25 +345,107 @@ public class StorageMonitoringService {
     private void getDirectoryStats(String path, StorageConfig config, 
                                    Map<String, DirectoryStats> directoryStatsMap) {
         try {
-            // Use du to get directory sizes
-            String command = String.format("find '%s' -type d ! -path '*/.*' 2>/dev/null | head -n %d | xargs -I {} du -sb {} 2>/dev/null", 
-                path.replace("'", "'\"'\"'"), TOP_DIRECTORIES_LIMIT);
+            // Check if this is individual storage (not system-wide with id -1)
+            boolean isIndividualStorage = config.getId() == null || !config.getId().equals(-1L);
             
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 2) {
-                        try {
-                            long size = Long.parseLong(parts[0]);
-                            String dirPath = parts[1];
-                            
-                            // Skip system directories for system-wide scanning
-                            if (config.getId() != null && config.getId().equals(-1L)) {
+            if (isIndividualStorage) {
+                // For individual storage, get total stats for the entire path once
+                DirectoryStats totalStats = new DirectoryStats();
+                
+                // Get total size using du
+                try {
+                    String sizeCommand = String.format("du -sb '%s' 2>/dev/null", path.replace("'", "'\"'\"'"));
+                    ProcessBuilder sizePb = new ProcessBuilder("bash", "-c", sizeCommand);
+                    sizePb.redirectErrorStream(true);
+                    Process sizeProcess = sizePb.start();
+                    
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(sizeProcess.getInputStream()))) {
+                        String line = reader.readLine();
+                        if (line != null && !line.trim().isEmpty()) {
+                            String[] parts = line.trim().split("\\s+");
+                            if (parts.length >= 1) {
+                                try {
+                                    totalStats.totalSize = Long.parseLong(parts[0]);
+                                } catch (NumberFormatException e) {
+                                    logger.debug("Error parsing total size for {}: {}", path, line);
+                                }
+                            }
+                        }
+                    }
+                    sizeProcess.waitFor();
+                } catch (Exception e) {
+                    logger.debug("Error getting total size for {}: {}", path, e.getMessage());
+                }
+                
+                // Get total file count
+                try {
+                    String fileCountCommand = String.format("find '%s' -type f ! -path '*/.*' 2>/dev/null | wc -l", 
+                        path.replace("'", "'\"'\"'"));
+                    ProcessBuilder fileCountPb = new ProcessBuilder("bash", "-c", fileCountCommand);
+                    fileCountPb.redirectErrorStream(true);
+                    Process fileCountProcess = fileCountPb.start();
+                    
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(fileCountProcess.getInputStream()))) {
+                        String output = reader.readLine();
+                        if (output != null && !output.trim().isEmpty()) {
+                            try {
+                                totalStats.fileCount = Integer.parseInt(output.trim());
+                            } catch (NumberFormatException e) {
+                                logger.debug("Error parsing total file count for {}: {}", path, output);
+                            }
+                        }
+                    }
+                    fileCountProcess.waitFor();
+                } catch (Exception e) {
+                    logger.debug("Error getting total file count for {}: {}", path, e.getMessage());
+                }
+                
+                // Get directory count
+                try {
+                    String dirCountCommand = String.format("find '%s' -type d ! -path '*/.*' 2>/dev/null | wc -l", 
+                        path.replace("'", "'\"'\"'"));
+                    ProcessBuilder dirCountPb = new ProcessBuilder("bash", "-c", dirCountCommand);
+                    dirCountPb.redirectErrorStream(true);
+                    Process dirCountProcess = dirCountPb.start();
+                    
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(dirCountProcess.getInputStream()))) {
+                        String output = reader.readLine();
+                        if (output != null && !output.trim().isEmpty()) {
+                            try {
+                                totalStats.directoryCount = Integer.parseInt(output.trim());
+                            } catch (NumberFormatException e) {
+                                logger.debug("Error parsing directory count for {}: {}", path, output);
+                            }
+                        }
+                    }
+                    dirCountProcess.waitFor();
+                } catch (Exception e) {
+                    logger.debug("Error getting directory count for {}: {}", path, e.getMessage());
+                }
+                
+                // Store total stats for the main path
+                directoryStatsMap.put(path, totalStats);
+                
+            } else {
+                // System-wide scanning (original behavior)
+                // Use du to get directory sizes
+                String command = String.format("find '%s' -type d ! -path '*/.*' 2>/dev/null | head -n %d | xargs -I {} du -sb {} 2>/dev/null", 
+                    path.replace("'", "'\"'\"'"), TOP_DIRECTORIES_LIMIT);
+                
+                ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        String[] parts = line.trim().split("\\s+");
+                        if (parts.length >= 2) {
+                            try {
+                                long size = Long.parseLong(parts[0]);
+                                String dirPath = parts[1];
+                                
+                                // Skip system directories for system-wide scanning
                                 if (dirPath.startsWith("/proc/") || 
                                     dirPath.startsWith("/sys/") || 
                                     dirPath.startsWith("/dev/") ||
@@ -376,20 +458,53 @@ public class StorageMonitoringService {
                                     dirPath.startsWith("/lost+found")) {
                                     continue;
                                 }
+                                
+                                DirectoryStats stats = directoryStatsMap.computeIfAbsent(dirPath, k -> new DirectoryStats());
+                                stats.totalSize = size;
+                                stats.directoryCount = 1;
+                                
+                            } catch (NumberFormatException e) {
+                                logger.debug("Error parsing size from du output: {}", line);
                             }
-                            
-                            DirectoryStats stats = directoryStatsMap.computeIfAbsent(dirPath, k -> new DirectoryStats());
-                            stats.totalSize = size;
-                            stats.directoryCount = 1;
-                            
-                        } catch (NumberFormatException e) {
-                            logger.debug("Error parsing size from du output: {}", line);
                         }
                     }
                 }
+                
+                process.waitFor();
+                
+                // Now count files in each directory
+                for (String dirPath : directoryStatsMap.keySet()) {
+                    try {
+                        // Count files recursively in this directory
+                        String fileCountCommand = String.format("find '%s' -type f ! -path '*/.*' 2>/dev/null | wc -l", 
+                            dirPath.replace("'", "'\"'\"'"));
+                        
+                        ProcessBuilder fileCountPb = new ProcessBuilder("bash", "-c", fileCountCommand);
+                        fileCountPb.redirectErrorStream(true);
+                        Process fileCountProcess = fileCountPb.start();
+                        
+                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(fileCountProcess.getInputStream()))) {
+                            String output = reader.readLine();
+                            if (output != null && !output.trim().isEmpty()) {
+                                try {
+                                    int fileCount = Integer.parseInt(output.trim());
+                                    DirectoryStats stats = directoryStatsMap.get(dirPath);
+                                    if (stats != null) {
+                                        stats.fileCount = fileCount;
+                                    }
+                                } catch (NumberFormatException e) {
+                                    logger.debug("Error parsing file count for {}: {}", dirPath, output);
+                                }
+                            }
+                        }
+                        
+                        fileCountProcess.waitFor();
+                        
+                    } catch (Exception e) {
+                        logger.debug("Error counting files in directory {}: {}", dirPath, e.getMessage());
+                    }
+                }
             }
-            
-            process.waitFor();
             
         } catch (Exception e) {
             logger.warn("Error getting directory stats: {}", e.getMessage());

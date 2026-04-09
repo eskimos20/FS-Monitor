@@ -20,7 +20,7 @@ const DashboardPage = () => {
   const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(60000);
   const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(60000);
   const { systemStats } = useSystemStats(refreshIntervalMs);
-  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(60000);
+  const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(60000, refreshIntervalMs);
   const { logConfigs } = useLogConfigs(60000);
 
   return (

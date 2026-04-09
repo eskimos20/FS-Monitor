@@ -8,11 +8,12 @@ let globalTimerState = {
   lastUpdate: Date.now()
 };
 
-export const useMonitoringStatus = (refreshInterval) => {
+export const useMonitoringStatus = (refreshInterval, settingsIntervalMs = null) => {
   const [secondsUntilNextRun, setSecondsUntilNextRun] = useState(globalTimerState.secondsUntilNextRun);
   const [integrationTimers, setIntegrationTimers] = useState(globalTimerState.integrationTimers);
   const lastFetchRef = useRef(0);
   const mountTimeRef = useRef(Date.now());
+  const initialFetchDone = useRef(false);
 
   const fetchMonitoringStatus = useCallback(async () => {
     try {
@@ -35,6 +36,7 @@ export const useMonitoringStatus = (refreshInterval) => {
       setIntegrationTimers(newTimers);
       
       lastFetchRef.current = Date.now();
+      initialFetchDone.current = true; // Mark first fetch as done
     } catch (error) {
       // Silently fail - backend will retry
     }
@@ -85,13 +87,27 @@ export const useMonitoringStatus = (refreshInterval) => {
     }, 1000);
 
     // Fetch from backend at configured interval
-    const fetchTimer = setInterval(fetchMonitoringStatus, refreshInterval);
+    // Use settings interval after initial fetch if settingsIntervalMs is provided
+    const getFetchInterval = () => {
+      if (!settingsIntervalMs) {
+        return refreshInterval; // Default behavior (60s)
+      }
+      
+      if (!initialFetchDone.current) {
+        return 60000; // Initial 60s wait
+      }
+      
+      // After initial fetch, use settings interval
+      return settingsIntervalMs;
+    };
+    
+    const fetchTimer = setInterval(fetchMonitoringStatus, getFetchInterval());
 
     return () => {
       clearInterval(countdownTimer);
       clearInterval(fetchTimer);
     };
-  }, [fetchMonitoringStatus, refreshInterval]);
+  }, [fetchMonitoringStatus, refreshInterval, settingsIntervalMs]);
 
   return {
     secondsUntilNextRun,

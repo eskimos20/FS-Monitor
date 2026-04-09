@@ -163,9 +163,10 @@ const StorageTable = () => {
         
         {/* Individual Storage Configs */}
         {storageConfigs.filter(({ config }) => config.id !== -1).map(({ config, info, largestFiles, diskSpace }) => {
-          const totalSize = info?.reduce((sum, item) => sum + item.totalSizeBytes, 0) || 0;
-          const totalFiles = info?.reduce((sum, item) => sum + item.fileCount, 0) || 0;
-          const totalDirs = info?.reduce((sum, item) => sum + item.directoryCount, 0) || 0;
+          // For Individual Storage, use the first (and only) item which contains total stats
+          const totalSize = info && info.length > 0 ? info[0].totalSizeBytes : (diskSpace?.totalBytes || 0);
+          const totalFiles = info && info.length > 0 ? info[0].fileCount : 0;
+          const totalDirs = info && info.length > 0 ? info[0].directoryCount : 0;
           const isExpanded = expandedItems[config.id] !== false;
 
           return (
