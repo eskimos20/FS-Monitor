@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { X, FolderOpen } from 'lucide-react';
+import { X, FolderOpen, Copy } from 'lucide-react';
 import AdvancedFileBrowser from '../AdvancedFileBrowser';
 
-const StorageConfigForm = ({ storageConfig, onSave, onCancel }) => {
+const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel }) => {
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [selectedToCopy, setSelectedToCopy] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     path: '',
@@ -44,16 +46,42 @@ const StorageConfigForm = ({ storageConfig, onSave, onCancel }) => {
     setShowFileBrowser(false);
   };
 
+  const handleCopyExisting = () => {
+    if (selectedToCopy) {
+      const itemToCopy = allStorageConfigs.find(s => s.id === parseInt(selectedToCopy));
+      if (itemToCopy) {
+        const { id, createdAt, updatedAt, lastCheck, ...dataWithoutId } = itemToCopy;
+        setFormData({ ...dataWithoutId, name: itemToCopy.name + ' (Copy)' });
+        setShowCopyModal(false);
+        setSelectedToCopy('');
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800">
-            {storageConfig ? 'Edit Storage Config' : 'Add Storage Config'}
-          </h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
-          </button>
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-800">
+              {storageConfig ? 'Edit Storage Config' : 'Add Storage Config'}
+            </h3>
+            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {!storageConfig && allStorageConfigs && allStorageConfigs.length > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy existing
+              </button>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
@@ -168,6 +196,50 @@ const StorageConfigForm = ({ storageConfig, onSave, onCancel }) => {
           />
         )}
       </div>
+
+      {/* Copy Existing Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Storage Config</h3>
+            <p className="text-sm text-gray-600 mb-4">Select a storage config to copy its settings:</p>
+            
+            <select
+              value={selectedToCopy}
+              onChange={(e) => setSelectedToCopy(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+            >
+              <option value="">-- Select Storage Config --</option>
+              {allStorageConfigs.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.path})
+                </option>
+              ))}
+            </select>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCopyModal(false);
+                  setSelectedToCopy('');
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyExisting}
+                disabled={!selectedToCopy}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

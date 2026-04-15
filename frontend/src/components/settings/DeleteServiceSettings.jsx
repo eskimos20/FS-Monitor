@@ -87,6 +87,7 @@ const DeleteServiceSettings = ({ deleteServices, onSave, onDelete }) => {
       {showForm && (
         <DeleteServiceForm
           deleteService={editingItem}
+          allDeleteServices={deleteServices}
           onSave={handleSave}
           onCancel={handleClose}
         />

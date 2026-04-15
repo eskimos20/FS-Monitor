@@ -73,6 +73,7 @@ const LogConfigSettings = ({ logConfigs, onSave, onDelete }) => {
       {showForm && (
         <LogConfigForm
           logConfig={editingItem}
+          allLogConfigs={logConfigs}
           onSave={handleSave}
           onCancel={handleClose}
         />

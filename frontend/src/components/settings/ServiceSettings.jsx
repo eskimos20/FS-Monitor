@@ -70,6 +70,7 @@ const ServiceSettings = ({ services, onSave, onDelete }) => {
       {showForm && (
         <ServiceForm
           service={editingItem}
+          allServices={services}
           onSave={handleSave}
           onClose={handleClose}
         />

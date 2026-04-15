@@ -68,6 +68,7 @@ const IntegrationSettings = ({ integrations, fileTypes, onSave, onDelete }) => {
       {showForm && (
         <IntegrationForm
           integration={editingItem}
+          allIntegrations={integrations}
           fileTypes={fileTypes}
           onSave={handleSave}
           onClose={handleClose}

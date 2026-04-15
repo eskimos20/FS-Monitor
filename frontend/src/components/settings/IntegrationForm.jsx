@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Folder } from 'lucide-react';
+import { X, Folder, Copy } from 'lucide-react';
 import AdvancedFileBrowser from '../AdvancedFileBrowser';
 
-const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
+const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onClose }) => {
   const [showFileBrowser, setShowFileBrowser] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [selectedToCopy, setSelectedToCopy] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     path: '',
@@ -64,16 +66,42 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
     setShowFileBrowser(false);
   };
 
+  const handleCopyExisting = () => {
+    if (selectedToCopy) {
+      const itemToCopy = allIntegrations.find(i => i.id === parseInt(selectedToCopy));
+      if (itemToCopy) {
+        const { id, ...dataWithoutId } = itemToCopy;
+        setFormData({ ...dataWithoutId, name: itemToCopy.name + ' (Copy)' });
+        setShowCopyModal(false);
+        setSelectedToCopy('');
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {integration ? 'Edit Integration' : 'New Integration'}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
-          </button>
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {integration ? 'Edit Integration' : 'New Integration'}
+            </h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {!integration && allIntegrations && allIntegrations.length > 0 && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowCopyModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy existing
+              </button>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -280,6 +308,50 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
           />
         )}
       </div>
+
+      {/* Copy Existing Modal */}
+      {showCopyModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Integration</h3>
+            <p className="text-sm text-gray-600 mb-4">Select an integration to copy its settings:</p>
+            
+            <select
+              value={selectedToCopy}
+              onChange={(e) => setSelectedToCopy(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+            >
+              <option value="">-- Select Integration --</option>
+              {allIntegrations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} ({item.path})
+                </option>
+              ))}
+            </select>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCopyModal(false);
+                  setSelectedToCopy('');
+                }}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyExisting}
+                disabled={!selectedToCopy}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

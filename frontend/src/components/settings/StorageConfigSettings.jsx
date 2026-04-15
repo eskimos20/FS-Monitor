@@ -93,6 +93,7 @@ const StorageConfigSettings = ({ storageConfigs, onSave, onDelete }) => {
       {showForm && (
         <StorageConfigForm
           storageConfig={editingConfig}
+          allStorageConfigs={storageConfigs}
           onSave={handleSave}
           onCancel={handleCancel}
         />
