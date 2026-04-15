@@ -167,13 +167,12 @@ public class FileMonitoringService {
             if (lastFileFound == null || lastFileFound.isBefore(threshold)) {
                 // Integration is inactive
                 notificationService.checkAndSendIntegrationNotification(
-                    integration.getId(), 
-                    integration.getName(), 
+                    integration, 
                     lastFileFound
                 );
             } else {
                 // Integration is active, clear any existing notification
-                notificationService.clearIntegrationNotification(integration.getId());
+                notificationService.clearIntegrationNotification(integration);
             }
         }
     }

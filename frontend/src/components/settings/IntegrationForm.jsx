@@ -8,13 +8,10 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
     name: '',
     path: '',
     monitoringEnabled: true,
-    cleanupEnabled: false,
     checkIntervalValue: 5,
     checkIntervalUnit: 'MINUTES',
     thresholdValue: 15,
     thresholdUnit: 'MINUTES',
-    cleanupAgeValue: 6,
-    cleanupAgeUnit: 'MONTHS',
     monitorAllFiles: false,
     monitoredFileTypes: [],
     scheduleDays: [],
@@ -173,47 +170,7 @@ const IntegrationForm = ({ integration, fileTypes, onSave, onClose }) => {
               />
               <span className="ml-2 text-sm text-gray-700">Monitoring Enabled</span>
             </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={formData.cleanupEnabled}
-                onChange={(e) => setFormData({ ...formData, cleanupEnabled: e.target.checked })}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="ml-2 text-sm text-gray-700">Cleanup Enabled</span>
-            </label>
           </div>
-
-          {/* Cleanup Settings - shown when cleanup is enabled */}
-          {formData.cleanupEnabled && (
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Delete files older than
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  value={formData.cleanupAgeValue}
-                  onChange={(e) => setFormData({ ...formData, cleanupAgeValue: parseInt(e.target.value) })}
-                  className="input-field"
-                  min="1"
-                  required
-                />
-                <select
-                  value={formData.cleanupAgeUnit}
-                  onChange={(e) => setFormData({ ...formData, cleanupAgeUnit: e.target.value })}
-                  className="input-field"
-                >
-                  <option value="DAYS">Days</option>
-                  <option value="MONTHS">Months</option>
-                  <option value="YEARS">Years</option>
-                </select>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Files older than {formData.cleanupAgeValue} {formData.cleanupAgeUnit.toLowerCase()} will be automatically deleted
-              </p>
-            </div>
-          )}
 
           {/* Schedule Settings */}
           <div className="border border-gray-200 rounded-lg p-4">

@@ -9,6 +9,7 @@ export const useSettings = () => {
   const [services, setServices] = useState([]);
   const [logConfigs, setLogConfigs] = useState([]);
   const [storageConfigs, setStorageConfigs] = useState([]);
+  const [deleteServices, setDeleteServices] = useState([]);
   const [appSettings, setAppSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,12 +17,13 @@ export const useSettings = () => {
 
   const fetchData = async () => {
     try {
-      const [integrationsRes, fileTypesRes, servicesRes, logConfigsRes, storageConfigsRes] = await Promise.all([
+      const [integrationsRes, fileTypesRes, servicesRes, logConfigsRes, storageConfigsRes, deleteServicesRes] = await Promise.all([
         integrationAPI.getAll().catch(() => ({ data: [] })),
         fileTypeAPI.getAll().catch(() => ({ data: [] })),
         api.get('/services').catch(() => ({ data: [] })),
         logConfigAPI.getAll().catch(() => ({ data: [] })),
-        api.get('/storage-configs').catch(() => ({ data: [] }))
+        api.get('/storage-configs').catch(() => ({ data: [] })),
+        api.get('/delete-services').catch(() => ({ data: [] }))
       ]);
 
       setIntegrations(integrationsRes.data);
@@ -29,6 +31,7 @@ export const useSettings = () => {
       setServices(servicesRes.data);
       setLogConfigs(logConfigsRes.data);
       setStorageConfigs(storageConfigsRes.data);
+      setDeleteServices(deleteServicesRes.data);
 
       try {
         const mailRes = await mailConfigAPI.getCurrent();
@@ -194,6 +197,37 @@ export const useSettings = () => {
     }
   };
 
+  const saveDeleteService = async (data, id) => {
+    try {
+      if (id) {
+        await api.put(`/delete-services/${id}`, data);
+        setSuccess('Delete service updated successfully');
+      } else {
+        await api.post('/delete-services', data);
+        setSuccess('Delete service created successfully');
+      }
+      await fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to save delete service');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const deleteDeleteService = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this delete service?')) return;
+    
+    try {
+      await api.delete(`/delete-services/${id}`);
+      setSuccess('Delete service deleted successfully');
+      await fetchData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to delete delete service');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   const saveAppSettings = async (data) => {
     try {
       await appSettingsAPI.save(data);
@@ -213,6 +247,7 @@ export const useSettings = () => {
     services,
     logConfigs,
     storageConfigs,
+    deleteServices,
     appSettings,
     loading,
     error,
@@ -226,6 +261,8 @@ export const useSettings = () => {
     deleteLogConfig,
     saveStorageConfig,
     deleteStorageConfig,
+    saveDeleteService,
+    deleteDeleteService,
     saveAppSettings,
     refreshData: fetchData
   };

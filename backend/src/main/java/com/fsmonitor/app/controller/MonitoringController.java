@@ -4,7 +4,6 @@ import com.fsmonitor.app.cache.IntegrationCacheService;
 import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.FileMonitoringService;
-import com.fsmonitor.app.service.FileCleanupService;
 import com.fsmonitor.app.service.IntegrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -24,9 +23,6 @@ public class MonitoringController {
 
     @Autowired
     private IntegrationService integrationService;
-
-    @Autowired
-    private FileCleanupService fileCleanupService;
 
     @Autowired
     private IntegrationCacheService integrationCacheService;
@@ -134,30 +130,6 @@ public class MonitoringController {
             return ResponseEntity.ok("Integration check triggered successfully");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Failed to trigger integration check: " + e.getMessage());
-        }
-    }
-
-    @PostMapping("/integrations/{id}/cleanup")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<String> triggerIntegrationCleanup(@PathVariable Long id) {
-        try {
-            fileCleanupService.cleanupIntegrationFilesNow(id);
-            return ResponseEntity.ok("Integration cleanup completed successfully");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to trigger integration cleanup: " + e.getMessage());
-        }
-    }
-
-    @GetMapping("/integrations/{id}/cleanup-preview")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> getCleanupPreview(@PathVariable Long id) {
-        try {
-            Map<String, Object> preview = fileCleanupService.getCleanupPreview(id);
-            return ResponseEntity.ok(preview);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                "error", "Failed to generate cleanup preview: " + e.getMessage()
-            ));
         }
     }
 }

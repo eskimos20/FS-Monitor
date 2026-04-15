@@ -38,13 +38,10 @@ public class IntegrationService {
                     integration.setPath(integrationDetails.getPath());
                     integration.setIsActive(integrationDetails.getIsActive());
                     integration.setMonitoringEnabled(integrationDetails.getMonitoringEnabled());
-                    integration.setCleanupEnabled(integrationDetails.getCleanupEnabled());
                     integration.setCheckIntervalValue(integrationDetails.getCheckIntervalValue());
                     integration.setCheckIntervalUnit(integrationDetails.getCheckIntervalUnit());
                     integration.setThresholdValue(integrationDetails.getThresholdValue());
                     integration.setThresholdUnit(integrationDetails.getThresholdUnit());
-                    integration.setCleanupAgeValue(integrationDetails.getCleanupAgeValue());
-                    integration.setCleanupAgeUnit(integrationDetails.getCleanupAgeUnit());
                     integration.setMonitorAllFiles(integrationDetails.getMonitorAllFiles());
                     integration.setScheduleDays(integrationDetails.getScheduleDays());
                     integration.setMonitoredFileTypes(integrationDetails.getMonitoredFileTypes());
@@ -68,11 +65,6 @@ public class IntegrationService {
     @Transactional
     public List<Integration> getActiveMonitoringIntegrations() {
         return integrationRepository.findActiveMonitoringIntegrations();
-    }
-
-    @Transactional
-    public List<Integration> getActiveCleanupIntegrations() {
-        return integrationRepository.findActiveCleanupIntegrations();
     }
 
     @Transactional

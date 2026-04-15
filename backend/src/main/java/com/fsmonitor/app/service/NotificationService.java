@@ -1,11 +1,14 @@
 package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.cache.MonitoringCacheManager;
+import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.NotificationType;
+import com.fsmonitor.app.repository.IntegrationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,27 +21,31 @@ public class NotificationService {
     private EmailService emailService;
 
     @Autowired
+    private IntegrationRepository integrationRepository;
+
+    @Autowired
     private MonitoringCacheManager cacheManager;
 
     @Autowired
     private MailConfigService mailConfigService;
 
-    public boolean checkAndSendIntegrationNotification(Long integrationId, String integrationName, LocalDateTime lastFileFound) {
-        // Check if notification already sent
-        if (cacheManager.getNotification(NotificationType.INTEGRATION_INACTIVE, integrationId).isPresent()) {
-            logger.debug("Integration {} notification already sent", integrationName);
+    @Transactional
+    public boolean checkAndSendIntegrationNotification(Integration integration, LocalDateTime lastFileFound) {
+        // Check if notification already sent from database
+        if (Boolean.TRUE.equals(integration.getNotificationSent())) {
+            logger.debug("Integration {} notification already sent", integration.getName());
             return false;
         }
 
         // Send notification
-        String subject = "FS-Monitor Alert: Integration " + integrationName + " is INACTIVE";
+        String subject = "FS-Monitor Alert: Integration " + integration.getName() + " is INACTIVE";
         String body = String.format(
             "Integration %s has become inactive.\n\n" +
             "Last file found: %s\n" +
             "Time of detection: %s\n\n" +
             "Please check the integration and resolve any issues.\n\n" +
             "FS-Monitor System",
-            integrationName,
+            integration.getName(),
             lastFileFound != null ? lastFileFound.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "Never",
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
@@ -50,18 +57,20 @@ public class NotificationService {
 
             emailSent = emailService.sendEmail(subject, body);
         } catch (Exception e) {
-            logger.warn("Failed to send integration {} notification: {}", integrationName, e.getMessage());
+            logger.warn("Failed to send integration {} notification: {}", integration.getName(), e.getMessage());
             return false;
         }
         
         if (emailSent) {
-            // Cache the notification
-            cacheManager.saveNotification(NotificationType.INTEGRATION_INACTIVE, integrationId, integrationName);
+            // Save notification status to database
+            integration.setNotificationSent(true);
+            integration.setNotificationSentAt(LocalDateTime.now());
+            integrationRepository.save(integration);
             
-            logger.info("Integration {} inactive notification sent", integrationName);
+            logger.info("Integration {} inactive notification sent and saved to database", integration.getName());
             return true;
         } else {
-            logger.warn("Failed to send integration {} notification: Email send failed", integrationName);
+            logger.warn("Failed to send integration {} notification: Email send failed", integration.getName());
             return false;
         }
     }
@@ -101,9 +110,12 @@ public class NotificationService {
         }
     }
 
-    public void clearIntegrationNotification(Long integrationId) {
-        cacheManager.clearNotification(NotificationType.INTEGRATION_INACTIVE, integrationId);
-        logger.debug("Cleared integration {} notification cache", integrationId);
+    @Transactional
+    public void clearIntegrationNotification(Integration integration) {
+        integration.setNotificationSent(false);
+        integration.setNotificationSentAt(null);
+        integrationRepository.save(integration);
+        logger.debug("Cleared integration {} notification status in database", integration.getName());
     }
 
     public void clearServiceNotification(Long serviceId) {

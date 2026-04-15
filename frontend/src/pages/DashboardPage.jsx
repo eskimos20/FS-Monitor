@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Cpu, FolderOpen, Server, FileSearch, HardDrive } from 'lucide-react';
+import { Cpu, FolderOpen, Server, FileSearch, HardDrive, Trash } from 'lucide-react';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { useServices } from '../hooks/useServices';
 import { useSystemStats } from '../hooks/useSystemStats';
 import { useMonitoringStatus } from '../hooks/useMonitoringStatus';
 import { useLogConfigs } from '../hooks/useLogConfigs';
+import { useDeleteServices } from '../hooks/useDeleteServices';
 import { useAppSettings } from '../hooks/useAppSettings';
 import TabButton from '../components/TabButton';
 import SystemTab from '../components/dashboard/SystemTab';
@@ -12,6 +13,7 @@ import FileIntegrationsTab from '../components/dashboard/FileIntegrationsTab';
 import ServiceIntegrationsTab from '../components/dashboard/ServiceIntegrationsTab';
 import LogControlTab from '../components/dashboard/LogControlTab';
 import StorageTable from '../components/dashboard/StorageTable';
+import DeleteServiceTab from '../components/dashboard/DeleteServiceTab';
 
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('system');
@@ -22,6 +24,7 @@ const DashboardPage = () => {
   const { systemStats } = useSystemStats(refreshIntervalMs);
   const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(60000, refreshIntervalMs);
   const { logConfigs } = useLogConfigs(60000);
+  const { deleteServices, loading: deleteServicesLoading, error: deleteServicesError, toggleDeleteService } = useDeleteServices(60000);
 
   return (
     <div className="space-y-6">
@@ -59,6 +62,12 @@ const DashboardPage = () => {
             label="Storage"
           />
           <TabButton
+            active={activeTab === 'delete'}
+            onClick={() => setActiveTab('delete')}
+            icon={Trash}
+            label="Delete Service"
+          />
+          <TabButton
             active={activeTab === 'logs'}
             onClick={() => setActiveTab('logs')}
             icon={FileSearch}
@@ -91,6 +100,15 @@ const DashboardPage = () => {
       )}
       
       {activeTab === 'storage' && <StorageTable />}
+      
+      {activeTab === 'delete' && (
+        <DeleteServiceTab
+          deleteServices={deleteServices}
+          loading={deleteServicesLoading}
+          error={deleteServicesError}
+          onToggle={toggleDeleteService}
+        />
+      )}
       
       {activeTab === 'logs' && (
         <LogControlTab

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Folder, Server, Mail, FileSearch, HardDrive, Settings } from 'lucide-react';
+import { Folder, Server, Mail, FileSearch, HardDrive, Settings, Trash } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import CollapsibleSection from '../components/CollapsibleSection';
 import IntegrationSettings from '../components/settings/IntegrationSettings';
@@ -7,6 +7,7 @@ import MailConfigSettings from '../components/settings/MailConfigSettings';
 import ServiceSettings from '../components/settings/ServiceSettings';
 import LogConfigSettings from '../components/settings/LogConfigSettings';
 import StorageConfigSettings from '../components/settings/StorageConfigSettings';
+import DeleteServiceSettings from '../components/settings/DeleteServiceSettings';
 import AppSettingsSection from '../components/settings/AppSettingsSection';
 
 const SettingsPage = () => {
@@ -17,6 +18,7 @@ const SettingsPage = () => {
     services,
     logConfigs,
     storageConfigs,
+    deleteServices,
     appSettings,
     loading,
     error,
@@ -30,6 +32,8 @@ const SettingsPage = () => {
     deleteLogConfig,
     saveStorageConfig,
     deleteStorageConfig,
+    saveDeleteService,
+    deleteDeleteService,
     saveAppSettings
   } = useSettings();
 
@@ -92,6 +96,14 @@ const SettingsPage = () => {
             storageConfigs={storageConfigs}
             onSave={saveStorageConfig}
             onDelete={deleteStorageConfig}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Delete Services" icon={Trash} defaultOpen={false} storageKey="settings_delete">
+          <DeleteServiceSettings
+            deleteServices={deleteServices}
+            onSave={saveDeleteService}
+            onDelete={deleteDeleteService}
           />
         </CollapsibleSection>
 

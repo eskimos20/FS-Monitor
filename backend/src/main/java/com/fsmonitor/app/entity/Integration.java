@@ -27,10 +27,6 @@ public class Integration {
     private Boolean monitoringEnabled = true;
 
     @NotNull
-    @Column(name = "cleanup_enabled")
-    private Boolean cleanupEnabled = false;
-
-    @NotNull
     @Column(name = "check_interval_value")
     private Integer checkIntervalValue = 5;
 
@@ -47,15 +43,6 @@ public class Integration {
     @Enumerated(EnumType.STRING)
     @Column(name = "threshold_unit")
     private TimeInterval thresholdUnit = TimeInterval.MINUTES;
-
-    @NotNull
-    @Column(name = "cleanup_age_value")
-    private Integer cleanupAgeValue = 6;
-
-    @NotNull
-    @Enumerated(EnumType.STRING)
-    @Column(name = "cleanup_age_unit")
-    private TimeInterval cleanupAgeUnit = TimeInterval.MONTHS;
 
     @NotNull
     @Column(name = "monitor_all_files")
@@ -81,6 +68,12 @@ public class Integration {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "notification_sent")
+    private Boolean notificationSent = false;
+
+    @Column(name = "notification_sent_at")
+    private LocalDateTime notificationSentAt;
 
     @ManyToMany
     @JoinTable(
@@ -118,9 +111,6 @@ public class Integration {
     public Boolean getMonitoringEnabled() { return monitoringEnabled; }
     public void setMonitoringEnabled(Boolean monitoringEnabled) { this.monitoringEnabled = monitoringEnabled; }
 
-    public Boolean getCleanupEnabled() { return cleanupEnabled; }
-    public void setCleanupEnabled(Boolean cleanupEnabled) { this.cleanupEnabled = cleanupEnabled; }
-
     public Integer getCheckIntervalValue() { return checkIntervalValue; }
     public void setCheckIntervalValue(Integer checkIntervalValue) { this.checkIntervalValue = checkIntervalValue; }
 
@@ -140,15 +130,6 @@ public class Integration {
 
     // Computed for backward compatibility
     public Long getThresholdMinutes() { return thresholdUnit.toMinutes(thresholdValue); }
-
-    public Integer getCleanupAgeValue() { return cleanupAgeValue; }
-    public void setCleanupAgeValue(Integer cleanupAgeValue) { this.cleanupAgeValue = cleanupAgeValue; }
-
-    public TimeInterval getCleanupAgeUnit() { return cleanupAgeUnit; }
-    public void setCleanupAgeUnit(TimeInterval cleanupAgeUnit) { this.cleanupAgeUnit = cleanupAgeUnit; }
-
-    // Computed for backward compatibility
-    public Long getCleanupAgeMinutes() { return cleanupAgeUnit.toMinutes(cleanupAgeValue); }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
@@ -179,4 +160,10 @@ public class Integration {
 
     public Integer getActiveEndHour() { return activeEndHour; }
     public void setActiveEndHour(Integer activeEndHour) { this.activeEndHour = activeEndHour; }
+
+    public Boolean getNotificationSent() { return notificationSent; }
+    public void setNotificationSent(Boolean notificationSent) { this.notificationSent = notificationSent; }
+
+    public LocalDateTime getNotificationSentAt() { return notificationSentAt; }
+    public void setNotificationSentAt(LocalDateTime notificationSentAt) { this.notificationSentAt = notificationSentAt; }
 }
