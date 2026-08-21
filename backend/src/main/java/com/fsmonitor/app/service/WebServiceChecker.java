@@ -15,8 +15,8 @@ public class WebServiceChecker implements ServiceChecker {
 
     public WebServiceChecker(RestTemplateBuilder restTemplateBuilder) {
         this.restTemplate = restTemplateBuilder
-            .setConnectTimeout(java.time.Duration.ofSeconds(5))
-            .setReadTimeout(java.time.Duration.ofSeconds(10))
+            .connectTimeout(java.time.Duration.ofSeconds(5))
+            .readTimeout(java.time.Duration.ofSeconds(10))
             .build();
     }
 

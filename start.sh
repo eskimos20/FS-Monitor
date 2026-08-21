@@ -123,9 +123,25 @@ echo "✅ Frontend dependencies installed!"
 
 # Build frontend to ensure latest changes are included
 echo "🔨 Building frontend..."
+rm -rf dist
 npm run build --silent 2>/dev/null || npm run build
 echo "✅ Frontend build completed!"
 cd ..
+
+# Verify frontend build actually produced files
+if [ ! -d "frontend/dist" ] || [ -z "$(ls -A frontend/dist 2>/dev/null)" ] || \
+   [ ! -d "frontend/dist/assets" ] || [ -z "$(ls -A frontend/dist/assets 2>/dev/null)" ]; then
+    echo "❌ Frontend build failed or produced an empty dist/ folder. Aborting."
+    exit 1
+fi
+
+# Copy frontend build to backend's static resources so the backend
+# also serves the latest frontend if accessed directly
+echo "📋 Copying frontend to backend static resources..."
+rm -rf backend/src/main/resources/static
+mkdir -p backend/src/main/resources/static
+cp -r frontend/dist/* backend/src/main/resources/static/
+echo "✅ Frontend copied to backend static resources!"
 
 # Start services
 echo "🚀 Starting services with REAL-TIME BACKEND LOGGING..."

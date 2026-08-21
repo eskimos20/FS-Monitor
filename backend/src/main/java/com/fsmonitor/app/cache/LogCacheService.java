@@ -231,7 +231,6 @@ public class LogCacheService extends AbstractCacheService<LogCacheService.LogCac
         Map<String, Integer> globalKeywordCounts = new HashMap<>();
         
         for (Map.Entry<Long, LogCache> entry : cache.entrySet()) {
-            Long configId = entry.getKey();
             LogCache logCache = entry.getValue();
             
             totalMatches += logCache.getMatchCount();

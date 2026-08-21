@@ -1,7 +1,6 @@
 package com.fsmonitor.app.security;
 
 import com.fsmonitor.app.entity.User;
-import com.fsmonitor.app.entity.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,12 +10,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class UserPrincipal implements UserDetails {
+    private static final long serialVersionUID = 1L;
+
     private Long id;
     private String username;
     private String email;
     private String password;
     private Boolean passwordChanged;
-    private Collection<? extends GrantedAuthority> authorities;
+    private transient Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(Long id, String username, String email, String password, Boolean passwordChanged, Collection<? extends GrantedAuthority> authorities) {
         this.id = id;

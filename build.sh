@@ -11,14 +11,28 @@ echo "🔨 Building FS-Monitor JAR file..."
 echo "🎨 Building frontend..."
 cd frontend
 npm install
+rm -rf dist
 npm run build
 cd ..
 
+# Verifiera att frontend-bygget faktiskt producerade filer
+if [ ! -d "frontend/dist" ] || [ -z "$(ls -A frontend/dist 2>/dev/null)" ]; then
+    echo "❌ Frontend build failed or produced an empty dist/ folder. Aborting."
+    exit 1
+fi
+
+if [ ! -d "frontend/dist/assets" ] || [ -z "$(ls -A frontend/dist/assets 2>/dev/null)" ]; then
+    echo "❌ frontend/dist/assets is missing or empty. Aborting."
+    exit 1
+fi
+
 # Kopiera frontend build till backend's static mapp
 echo "📋 Copying frontend to backend static resources..."
+rm -rf backend/src/main/resources/static
 mkdir -p backend/src/main/resources/static
-rm -rf backend/src/main/resources/static/*
 cp -r frontend/dist/* backend/src/main/resources/static/
+
+echo "✅ Frontend copied to backend static resources ($(find backend/src/main/resources/static -type f | wc -l) files)"
 
 # Gå till backend katalogen
 cd backend

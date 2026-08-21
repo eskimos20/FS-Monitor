@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 @Service
 public class LogMonitoringService {
     private static final Logger logger = LoggerFactory.getLogger(LogMonitoringService.class);
-    private static final int CONTEXT_LINES = 10;
 
     @Autowired
     private LogConfigRepository logConfigRepository;
