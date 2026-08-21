@@ -73,6 +73,9 @@ bin/
 # VS Code
 .vscode/
 
+# Windsurf
+.windsurf/
+
 # Spring Boot
 spring-boot-starter-*.log
 
@@ -192,8 +195,6 @@ application.properties
 application-*.properties
 
 # Git
-.git
-.gitignore
 
 # Documentation
 README.md
@@ -208,3 +209,7 @@ backend/src/main/resources/static/assets/*.js
 backend/src/main/resources/static/assets/*.css
 backend/src/main/resources/static/assets/*.map
 backend/src/main/resources/static/index.html
+
+# H2 companion files
+*.trace.db
+*.lock.db
