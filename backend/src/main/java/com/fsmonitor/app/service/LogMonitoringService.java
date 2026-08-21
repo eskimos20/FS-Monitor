@@ -6,15 +6,14 @@ import com.fsmonitor.app.cache.MonitoringCacheManager.LogMatchResultData;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
 import com.fsmonitor.app.repository.LogConfigRepository;
+import com.fsmonitor.app.util.ShellCommandUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -53,7 +52,7 @@ public class LogMonitoringService {
         return matches;
     }
 
-    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
     public void monitorLogs() {
         long startTime = System.currentTimeMillis();
         List<LogConfig> activeConfigs = logConfigRepository.findByActiveTrue();
@@ -206,7 +205,7 @@ public class LogMonitoringService {
         StringBuilder command = new StringBuilder();
         
         // Find command to locate files
-        command.append("find '").append(path).append("'");
+        command.append("find ").append(ShellCommandUtil.escapeForBash(path));
         
         if (recursive) {
             command.append(" -type f");
@@ -216,25 +215,21 @@ public class LogMonitoringService {
         
         // Add file type filter - use regex to match only files ending with extension
         command.append(" \\( ");
-        String[] types = fileTypePattern.split(" ");
+        String[] types = fileTypePattern.isBlank() ? new String[0] : fileTypePattern.split(" +");
         for (int i = 0; i < types.length; i++) {
             if (i > 0) command.append(" -o ");
             // Convert *.log to regex pattern that matches files ending with .log
             String extension = types[i].replace("*", "").replace(".", "\\.");
-            command.append("-regex '.*").append(extension).append("'");
+            command.append("-regex ").append(ShellCommandUtil.escapeForBash(".*" + extension)).append(" ");
         }
         command.append(" \\) ");
         
         // Execute grep on found files using xargs (more reliable with Java ProcessBuilder)
         command.append(" | xargs -r grep -H -n -C 10 -i");
         
-        // Add keywords
-        if (keywords.size() == 1) {
-            command.append(" -e '").append(keywords.get(0)).append("' ");
-        } else {
-            for (String keyword : keywords) {
-                command.append(" -e '").append(keyword).append("' ");
-            }
+        // Add keywords (safely escaped)
+        for (String keyword : keywords) {
+            command.append(" -e ").append(ShellCommandUtil.escapeForBash(keyword)).append(" ");
         }
         
         command.append("2>/dev/null");
@@ -249,16 +244,12 @@ public class LogMonitoringService {
         StringBuilder command = new StringBuilder();
         command.append("grep -H -n -C 10 -i");
         
-        // Add keywords
-        if (keywords.size() == 1) {
-            command.append(" -e '").append(keywords.get(0)).append("' ");
-        } else {
-            for (String keyword : keywords) {
-                command.append(" -e '").append(keyword).append("' ");
-            }
+        // Add keywords (safely escaped)
+        for (String keyword : keywords) {
+            command.append(" -e ").append(ShellCommandUtil.escapeForBash(keyword)).append(" ");
         }
         
-        command.append(" '").append(filePath).append("' 2>/dev/null");
+        command.append(" ").append(ShellCommandUtil.escapeForBash(filePath)).append(" 2>/dev/null");
         
         return command.toString();
     }
@@ -267,38 +258,22 @@ public class LogMonitoringService {
      * Execute grep command and return output lines
      */
     private List<String> executeGrepCommand(String command) throws IOException {
-        ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-        Process process = pb.start();
+        ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
+        int exitCode = result.getExitCode();
         
-        List<String> output = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(process.getInputStream())
-            )) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.add(line);
+        // grep returns 0 when matches found, 1 when no matches found, 2+ for errors
+        // We accept both 0 and 1 as valid (1 can mean no matches OR matches with warnings)
+        if (exitCode > 1) {
+            // Check if this is a common fallback scenario (non-critical directory access)
+            if (command.contains("/var/log") || command.contains("/proc") || command.contains("/sys")) {
+                logger.debug("Grep command failed for system directory (exit code {}): {}", exitCode, command);
+            } else {
+                logger.warn("Grep command failed with exit code {}: {}", exitCode, command);
             }
         }
+        logger.debug("Grep command completed with exit code {}: {} lines returned", exitCode, result.getOutput().size());
         
-        try {
-            int exitCode = process.waitFor();
-            // grep returns 0 when matches found, 1 when no matches found, 2+ for errors
-            // We accept both 0 and 1 as valid (1 can mean no matches OR matches with warnings)
-            if (exitCode > 1) {
-                // Check if this is a common fallback scenario (non-critical directory access)
-                if (command.contains("/var/log") || command.contains("/proc") || command.contains("/sys")) {
-                    logger.debug("Grep command failed for system directory (exit code {}): {}", exitCode, command);
-                } else {
-                    logger.warn("Grep command failed with exit code {}: {}", exitCode, command);
-                }
-            }
-            logger.debug("Grep command completed with exit code {}: {} lines returned", exitCode, output.size());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn("Grep command interrupted: {}", command);
-        }
-        
-        return output;
+        return result.getOutput();
     }
     
     /**

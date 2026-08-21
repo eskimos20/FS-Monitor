@@ -5,15 +5,14 @@ import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.repository.IntegrationRepository;
+import com.fsmonitor.app.util.ShellCommandUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -44,7 +43,7 @@ public class FileMonitoringService {
     @Autowired
     private IntegrationCacheService integrationCacheService;
 
-    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
     public void monitorIntegrations() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
@@ -201,28 +200,24 @@ public class FileMonitoringService {
         
         try {
             // Use Linux find command to find the most recently modified file
-            String command = String.format("find '%s' -type f -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
-                directory.getAbsolutePath().replace("'", "'\"'\"'"));
+            String command = String.format("find %s -type f -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
+                ShellCommandUtil.escapeForBash(directory.getAbsolutePath()));
             
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
+            ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
             
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line = reader.readLine();
-                
-                int exitCode = process.waitFor();
-                if (exitCode == 0 && line != null && !line.trim().isEmpty()) {
-                    File latestFile = new File(line.trim());
+            if (result.getExitCode() == 0 && !result.getOutput().isEmpty()) {
+                String line = result.getOutput().get(0).trim();
+                if (!line.isEmpty()) {
+                    File latestFile = new File(line);
                     if (latestFile.exists()) {
                         logger.debug("Latest file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
                         return latestFile;
                     }
                 }
-                
-                logger.debug("No files found in directory");
-                return null;
             }
+            
+            logger.debug("No files found in directory");
+            return null;
             
         } catch (Exception e) {
             logger.warn("Failed to find latest file using Linux command: {}", e.getMessage());
@@ -237,31 +232,27 @@ public class FileMonitoringService {
             // Build extension pattern for find command
             String extensionPattern = extensions.stream()
                 .map(ext -> ext.startsWith(".") ? ext : "." + ext)
-                .map(ext -> "-name '*" + ext + "'")
+                .map(ext -> "-name " + ShellCommandUtil.escapeForBash("*" + ext))
                 .collect(Collectors.joining(" -o "));
             
-            String command = String.format("find '%s' -type f \\( %s \\) -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
-                directory.getAbsolutePath().replace("'", "'\"'\"'"), extensionPattern);
+            String command = String.format("find %s -type f \\( %s \\) -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
+                ShellCommandUtil.escapeForBash(directory.getAbsolutePath()), extensionPattern);
             
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
+            ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
             
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line = reader.readLine();
-                
-                int exitCode = process.waitFor();
-                if (exitCode == 0 && line != null && !line.trim().isEmpty()) {
-                    File latestFile = new File(line.trim());
+            if (result.getExitCode() == 0 && !result.getOutput().isEmpty()) {
+                String line = result.getOutput().get(0).trim();
+                if (!line.isEmpty()) {
+                    File latestFile = new File(line);
                     if (latestFile.exists()) {
                         logger.debug("Latest matching file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
                         return latestFile;
                     }
                 }
-                
-                logger.debug("No matching files found");
-                return null;
             }
+            
+            logger.debug("No matching files found");
+            return null;
             
         } catch (Exception e) {
             logger.warn("Failed to find latest file with extensions using Linux command: {}", e.getMessage());

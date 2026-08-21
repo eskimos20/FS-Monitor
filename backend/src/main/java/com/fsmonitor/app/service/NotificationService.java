@@ -7,11 +7,15 @@ import com.fsmonitor.app.repository.IntegrationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class NotificationService {
@@ -27,7 +31,13 @@ public class NotificationService {
     private MonitoringCacheManager cacheManager;
 
     @Autowired
+    @Qualifier("mailTaskExecutor")
+    private Executor mailTaskExecutor;
+
+    @Autowired
     private MailConfigService mailConfigService;
+
+    private static final int EMAIL_TIMEOUT_SECONDS = 15;
 
     @Transactional
     public boolean checkAndSendIntegrationNotification(Integration integration, LocalDateTime lastFileFound) {
@@ -55,7 +65,7 @@ public class NotificationService {
             mailConfigService.getCurrentMailConfig()
                 .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
 
-            emailSent = emailService.sendEmail(subject, body);
+            emailSent = sendEmailWithTimeout(subject, body);
         } catch (Exception e) {
             logger.warn("Failed to send integration {} notification: {}", integration.getName(), e.getMessage());
             return false;
@@ -93,10 +103,16 @@ public class NotificationService {
             LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
         );
 
-        mailConfigService.getCurrentMailConfig()
-            .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
+        boolean emailSent = false;
+        try {
+            mailConfigService.getCurrentMailConfig()
+                .orElseThrow(() -> new RuntimeException("Mail configuration not found"));
 
-        boolean emailSent = emailService.sendEmail(subject, body);
+            emailSent = sendEmailWithTimeout(subject, body);
+        } catch (Exception e) {
+            logger.warn("Failed to send service {} notification: {}", serviceName, e.getMessage());
+            return false;
+        }
         
         if (emailSent) {
             // Cache the notification
@@ -121,5 +137,10 @@ public class NotificationService {
     public void clearServiceNotification(Long serviceId) {
         cacheManager.clearNotification(NotificationType.SERVICE_OFFLINE, serviceId);
         logger.debug("Cleared service {} notification cache", serviceId);
+    }
+
+    private boolean sendEmailWithTimeout(String subject, String body) throws Exception {
+        return CompletableFuture.supplyAsync(() -> emailService.sendEmail(subject, body), mailTaskExecutor)
+                .get(EMAIL_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 }

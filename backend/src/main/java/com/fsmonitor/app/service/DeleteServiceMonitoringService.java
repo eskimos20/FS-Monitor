@@ -34,7 +34,7 @@ public class DeleteServiceMonitoringService {
     private LocalDateTime nextSchedulerRun;
     private Map<Long, LocalDateTime> serviceNextRun = new HashMap<>();
 
-    @Scheduled(fixedRate = 60000, initialDelay = 60000)
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000)
     public void monitorDeleteServices() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
@@ -135,6 +135,10 @@ public class DeleteServiceMonitoringService {
         }
         
         for (File file : files) {
+            if (java.nio.file.Files.isSymbolicLink(file.toPath())) {
+                logger.debug("Skipping symlink: {}", file.getAbsolutePath());
+                continue;
+            }
             if (file.isDirectory()) {
                 CleanupResult subResult = deleteFilesRecursive(file, cutoffTime, extensions, deleteEmptyDirs);
                 filesDeleted += subResult.filesDeleted;
@@ -175,6 +179,10 @@ public class DeleteServiceMonitoringService {
         }
         
         for (File file : files) {
+            if (java.nio.file.Files.isSymbolicLink(file.toPath())) {
+                logger.debug("Skipping symlink: {}", file.getAbsolutePath());
+                continue;
+            }
             if (file.isFile()) {
                 if (shouldDeleteFile(file, cutoffTime, extensions)) {
                     if (file.delete()) {

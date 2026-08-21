@@ -1,31 +1,31 @@
 {
   "development": {
     "frontend": {
-      "port": 8086,
+      "port": 8088,
       "host": "0.0.0.0"
     },
     "backend": {
-      "port": 8085,
+      "port": 8089,
       "host": "localhost"
     }
   },
   "production": {
     "frontend": {
-      "port": 8086,
+      "port": 8088,
       "host": "localhost"
     },
     "backend": {
-      "port": 8085,
+      "port": 8089,
       "host": "0.0.0.0"
     }
   },
   "docker": {
     "frontend": {
-      "port": 8086,
+      "port": 8088,
       "host": "0.0.0.0"
     },
     "backend": {
-      "port": 8085,
+      "port": 8089,
       "host": "0.0.0.0"
     }
   }

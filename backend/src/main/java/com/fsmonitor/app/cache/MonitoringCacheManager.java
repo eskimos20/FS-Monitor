@@ -170,7 +170,7 @@ public class MonitoringCacheManager {
     }
     
     public static class LogCache {
-        private List<LogMatchResultData> matches = new ArrayList<>();
+        private List<LogMatchResultData> matches = new java.util.concurrent.CopyOnWriteArrayList<>();
         private LocalDateTime cacheTime;
         private static final int MAX_MATCHES = 1000;
         

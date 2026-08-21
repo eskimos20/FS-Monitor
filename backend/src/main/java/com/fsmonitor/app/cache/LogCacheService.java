@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Log-specific cache service extending AbstractCacheService
@@ -18,7 +19,7 @@ public class LogCacheService extends AbstractCacheService<LogCacheService.LogCac
      * Log cache data structure with built-in size limit
      */
     public static class LogCache {
-        private List<LogMatchResultData> matches = new ArrayList<>();
+        private List<LogMatchResultData> matches = new CopyOnWriteArrayList<>();
         private LocalDateTime cacheTime;
         
         public LogCache() {
@@ -63,9 +64,7 @@ public class LogCacheService extends AbstractCacheService<LogCacheService.LogCac
                 List<LogMatchResultData> matches = logCache.getMatches();
                 List<LogMatchResultData> toKeep = new ArrayList<>(matches.subList(0, 100));
                 logCache.clearMatches();
-                for (LogMatchResultData match : toKeep) {
-                    logCache.addMatch(match);
-                }
+                logCache.getMatches().addAll(toKeep);
                 logger.debug("Cleaned up old matches for config {}: kept 100 of {}", 
                     configId, matches.size());
             }

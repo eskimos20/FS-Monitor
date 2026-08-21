@@ -59,7 +59,7 @@ public class ServiceMonitoringService {
         // Cache will be populated when actual checks occur
     }
 
-    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
     public void monitorServices() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         

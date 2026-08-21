@@ -61,7 +61,7 @@ public class StorageMonitoringService {
         }
     }
     
-    @Scheduled(fixedRate = 60000, initialDelay = 60000) // Check every minute, wait 1 min after startup
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Check every minute, wait 1 min after startup
     public void monitorStorage() {
         List<StorageConfig> activeConfigs = storageConfigRepository.findByActiveTrue();
         long currentTime = System.currentTimeMillis();

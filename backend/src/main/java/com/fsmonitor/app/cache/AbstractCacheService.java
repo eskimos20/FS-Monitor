@@ -82,7 +82,7 @@ public abstract class AbstractCacheService<T> {
      * Scheduled cleanup of old data
      * Runs every 5 minutes - override in subclasses for specific cleanup logic
      */
-    @Scheduled(fixedRate = 300000, initialDelay = 300000) // Every 5 minutes, wait 5 min after startup
+    @Scheduled(fixedDelay = 300000, initialDelay = 300000) // Every 5 minutes, wait 5 min after startup
     public void scheduledCleanup() {
         try {
             cleanupOldData();
