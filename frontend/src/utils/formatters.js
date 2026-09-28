@@ -25,15 +25,20 @@ export const formatTimeAgo = (minutes) => {
   return `${years}y ${remainingDays}d ago`;
 };
 
+/** Returns a text color class for integration status. */
 export const getStatusColor = (isActive, lastFileFound, thresholdMinutes) => {
-  if (!isActive) return 'status-inactive';
-  if (!lastFileFound) return 'status-inactive';
-  
-  const now = new Date();
-  const lastFileTime = new Date(lastFileFound);
-  const minutesSinceLastFile = (now - lastFileTime) / (1000 * 60);
-  
-  return minutesSinceLastFile <= thresholdMinutes ? 'status-active' : 'status-inactive';
+  return isIntegrationHealthy(isActive, lastFileFound, thresholdMinutes)
+    ? 'text-emerald-600'
+    : 'text-red-600';
+};
+
+/** True when the integration is active and a file was seen within threshold. */
+export const isIntegrationHealthy = (isActive, lastFileFound, thresholdMinutes) => {
+  if (!isActive) return false;
+  if (!lastFileFound) return false;
+
+  const minutesSinceLastFile = (new Date() - new Date(lastFileFound)) / (1000 * 60);
+  return minutesSinceLastFile <= thresholdMinutes;
 };
 
 export const getStatusText = (isActive, lastFileFound, thresholdMinutes) => {

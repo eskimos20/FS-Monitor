@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import api from '../api/axios';
+import { usePolling } from './usePolling';
 
 const API_URL = '/delete-services';
 
@@ -21,14 +22,7 @@ export const useDeleteServices = (refreshInterval = 60000) => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDeleteServices();
-    
-    if (refreshInterval > 0) {
-      const interval = setInterval(fetchDeleteServices, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [fetchDeleteServices, refreshInterval]);
+  usePolling(fetchDeleteServices, refreshInterval);
 
   const createDeleteService = async (data) => {
     try {

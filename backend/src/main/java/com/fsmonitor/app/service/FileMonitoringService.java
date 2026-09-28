@@ -2,76 +2,97 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.cache.IntegrationCacheService;
 import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
-import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.FileType;
+import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.repository.IntegrationRepository;
-import com.fsmonitor.app.util.ShellCommandUtil;
+import com.fsmonitor.app.util.ScheduleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
+import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class FileMonitoringService {
 
     private static final Logger logger = LoggerFactory.getLogger(FileMonitoringService.class);
 
-    // Track when the scheduler actually runs
-    private LocalDateTime lastSchedulerRun;
-    private LocalDateTime nextSchedulerRun;
+    private final IntegrationRepository integrationRepository;
+    private final NotificationService notificationService;
+    private final IntegrationCacheService integrationCacheService;
 
-    @jakarta.annotation.PostConstruct
-    public void initializeIntegrationMonitoring() {
-        logger.info("Initializing integration monitoring on startup");
-        // Note: Don't set lastCheckedAt to avoid false timestamps
-        // Cache will be populated when actual checks occur
+    // Track when the scheduler actually runs (for the dashboard countdown)
+    private volatile LocalDateTime lastSchedulerRun;
+    private volatile LocalDateTime nextSchedulerRun;
+
+    public FileMonitoringService(IntegrationRepository integrationRepository,
+                                 NotificationService notificationService,
+                                 IntegrationCacheService integrationCacheService) {
+        this.integrationRepository = integrationRepository;
+        this.notificationService = notificationService;
+        this.integrationCacheService = integrationCacheService;
     }
 
-    @Autowired
-    private IntegrationRepository integrationRepository;
+    @PostConstruct
+    public void initializeIntegrationMonitoring() {
+        logger.info("Initializing integration monitoring on startup");
+        // Seed lastCheckedAt from the persisted lastCheck column so a restart
+        // does not trigger an immediate rescan of every integration.
+        try {
+            for (Integration integration : integrationRepository.findAll()) {
+                if (integration.getLastCheck() != null) {
+                    integrationCacheService.getCache(integration.getId())
+                            .setLastCheckedAt(integration.getLastCheck());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Could not seed integration check timestamps: {}", e.getMessage());
+        }
+    }
 
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private IntegrationCacheService integrationCacheService;
-
-    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Run every minute, wait 1 min after startup
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000)
     public void monitorIntegrations() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
-        
+
         logger.debug("Starting file monitoring check...");
-        
+
         List<Integration> activeIntegrations = integrationRepository.findActiveMonitoringIntegrations();
-        
-        // MEMORY CLEANUP: Clear cache entries for deleted integrations
-        cleanupDeletedIntegrations(activeIntegrations);
-        
+
+        // Drop cache entries for deleted integrations
+        Set<Long> activeIds = activeIntegrations.stream()
+                .map(Integration::getId)
+                .collect(Collectors.toSet());
+        integrationCacheService.cleanupDeletedConfigs(activeIds);
+
         for (Integration integration : activeIntegrations) {
             try {
                 if (shouldCheckIntegration(integration, now)) {
                     long startTime = System.currentTimeMillis();
                     checkIntegration(integration, now);
-                    long endTime = System.currentTimeMillis();
-                    logger.info("Integration scan completed - Name: {} - Duration: {}ms", integration.getName(), (endTime - startTime));
+                    logger.info("Integration scan completed - Name: {} - Duration: {}ms",
+                            integration.getName(), System.currentTimeMillis() - startTime);
                 }
             } catch (Exception e) {
-                logger.error("Error monitoring integration: " + integration.getName(), e);
+                logger.error("Error monitoring integration: {}", integration.getName(), e);
             }
         }
-        
+
         // Set next run AFTER all integrations have been checked
-        // This prevents race conditions where frontend sees stale nextRun time
-        nextSchedulerRun = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS).plusSeconds(60);
-        
+        nextSchedulerRun = LocalDateTime.now()
+                .truncatedTo(java.time.temporal.ChronoUnit.SECONDS).plusSeconds(60);
+
         logger.debug("File monitoring check completed for {} integrations", activeIntegrations.size());
     }
 
@@ -81,218 +102,151 @@ public class FileMonitoringService {
     private boolean shouldCheckIntegration(Integration integration, LocalDateTime now) {
         // Check schedule constraints first
         if (Boolean.TRUE.equals(integration.getScheduleEnabled())) {
-            if (!isWithinSchedule(integration.getActiveDays(), 
-                                   integration.getActiveStartHour(), 
-                                   integration.getActiveEndHour(), 
+            if (!ScheduleUtil.isWithinSchedule(integration.getActiveDays(),
+                                   integration.getActiveStartHour(),
+                                   integration.getActiveEndHour(),
                                    now)) {
                 logger.debug("Integration {} is outside scheduled time, skipping", integration.getName());
                 return false;
             }
         }
-        
+
         IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
-            // First check - run immediately
-            return true;
+            return true; // First check - run immediately
         }
-        
-        LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
-            .plusMinutes(integration.getCheckIntervalMinutes().longValue());
-        return !now.isBefore(nextCheck);
-    }
 
-    private boolean isWithinSchedule(String activeDays, Integer startHour, Integer endHour, LocalDateTime now) {
-        // Check day of week
-        if (activeDays != null && !activeDays.isEmpty()) {
-            String currentDay = now.getDayOfWeek().name().substring(0, 3).toUpperCase();
-            if (!activeDays.toUpperCase().contains(currentDay)) {
-                return false;
-            }
-        }
-        
-        // Check time of day
-        if (startHour != null && endHour != null) {
-            int currentHour = now.getHour();
-            if (currentHour < startHour || currentHour >= endHour) {
-                return false;
-            }
-        }
-        
-        return true;
+        Long intervalMin = integration.getCheckIntervalMinutes();
+        LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+            .plusMinutes(intervalMin != null ? intervalMin : 5L);
+        return !now.isBefore(nextCheck);
     }
 
     private void checkIntegration(Integration integration, LocalDateTime now) {
         logger.debug("Checking integration: {}", integration.getName());
-        
-        String path = integration.getPath();
-        File directory = new File(path);
-        
-        if (!directory.exists() || !directory.isDirectory()) {
-            logger.warn("Directory does not exist for integration {}: {}", integration.getName(), path);
-            return;
-        }
 
         IntegrationCache cache = integrationCacheService.getCache(integration.getId());
-        
-        // Mark that the scheduler checked this integration at this cycle's timestamp
         cache.setLastCheckedAt(now);
+        // Persist so check pacing survives restarts (bulk update - does not touch updatedAt)
+        try {
+            integrationRepository.updateLastCheck(integration.getId(), now);
+        } catch (Exception e) {
+            logger.debug("Could not persist lastCheck for integration {}: {}", integration.getId(), e.getMessage());
+        }
 
-        // Find the latest file recursively
-        File latestFile;
-        if (Boolean.TRUE.equals(integration.getMonitorAllFiles())) {
-            latestFile = findLatestFileAllTypes(directory);
+        String path = integration.getPath();
+        Path directory = Paths.get(path);
+
+        if (!Files.isDirectory(directory)) {
+            // Missing directory (e.g. unmounted share) - fall through to the
+            // notification block so a stale lastFileFound still alerts.
+            logger.warn("Directory does not exist for integration {}: {}", integration.getName(), path);
         } else {
-            latestFile = findLatestFile(directory, integration.getMonitoredFileTypes());
-        }
-        
-        if (latestFile != null) {
-            LocalDateTime fileModifiedTime = LocalDateTime.ofInstant(
-                java.time.Instant.ofEpochMilli(latestFile.lastModified()), 
-                ZoneId.systemDefault()
-            );
-            
-            cache.setLastFileFound(fileModifiedTime);
-            cache.setLastFileName(latestFile.getAbsolutePath());
-        } else {
-            logger.debug("No monitored files found for integration: {}", integration.getName());
-        }
-        
-        // Check if integration is inactive and send notification
-        if (integration.getIsActive() && integration.getMonitoringEnabled()) {
-            LocalDateTime lastFileFound = cache.getLastFileFound();
-            LocalDateTime threshold = now.minusMinutes(integration.getThresholdMinutes().longValue());
-            
-            if (lastFileFound == null || lastFileFound.isBefore(threshold)) {
-                // Integration is inactive
-                notificationService.checkAndSendIntegrationNotification(
-                    integration, 
-                    lastFileFound
-                );
+            Path latestFile;
+            if (Boolean.TRUE.equals(integration.getMonitorAllFiles())) {
+                latestFile = findLatestFile(directory, null);
             } else {
-                // Integration is active, clear any existing notification
+                latestFile = findLatestFile(directory, extensionSet(integration));
+            }
+
+            if (latestFile != null) {
+                try {
+                    LocalDateTime fileModifiedTime = LocalDateTime.ofInstant(
+                            Files.getLastModifiedTime(latestFile).toInstant(), ZoneId.systemDefault());
+                    cache.setLastFileFound(fileModifiedTime);
+                    cache.setLastFileName(latestFile.toAbsolutePath().toString());
+                } catch (IOException e) {
+                    logger.warn("Could not read modification time of {}: {}", latestFile, e.getMessage());
+                }
+            } else {
+                logger.debug("No monitored files found for integration: {}", integration.getName());
+            }
+        }
+
+        // Check if integration is inactive and send notification
+        if (Boolean.TRUE.equals(integration.getIsActive())
+                && Boolean.TRUE.equals(integration.getMonitoringEnabled())) {
+            LocalDateTime lastFileFound = cache.getLastFileFound();
+            LocalDateTime threshold = now.minusMinutes(integration.getThresholdMinutes());
+
+            if (lastFileFound == null || lastFileFound.isBefore(threshold)) {
+                notificationService.checkAndSendIntegrationNotification(integration, lastFileFound);
+            } else {
                 notificationService.clearIntegrationNotification(integration);
             }
         }
     }
 
-    private File findLatestFile(File directory, Set<FileType> monitoredFileTypes) {
-        logger.debug("Looking for latest file in directory: {}", directory.getAbsolutePath());
-        
+    /** Trigger an immediate check (used by the "check now" API endpoint).
+     *  Runs async so the HTTP request returns immediately. */
+    @org.springframework.scheduling.annotation.Async("monitorTaskExecutor")
+    public void checkIntegrationNow(Integration integration) {
+        checkIntegration(integration,
+                LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+    }
+
+    private Set<String> extensionSet(Integration integration) {
+        Set<FileType> monitoredFileTypes = integration.getMonitoredFileTypes();
         if (monitoredFileTypes == null || monitoredFileTypes.isEmpty()) {
-            logger.debug("No specific file types configured, monitoring all files");
-            return findLatestFileAllTypes(directory);
+            return null; // no filter - monitor all files
         }
-        
-        Set<String> extensions = monitoredFileTypes.stream()
-            .map(FileType::getExtension)
-            .map(String::toLowerCase)
-            .collect(Collectors.toSet());
-        
-        logger.debug("Looking for files with extensions: {}", extensions);
-        
-        return findLatestFileByExtensions(directory, extensions);
-    }
-
-    
-    private File findLatestFileAllTypes(File directory) {
-        logger.debug("Finding latest file using Linux find command in directory: {}", directory.getAbsolutePath());
-        
-        try {
-            // Use Linux find command to find the most recently modified file
-            String command = String.format("find %s -type f -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
-                ShellCommandUtil.escapeForBash(directory.getAbsolutePath()));
-            
-            ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
-            
-            if (result.getExitCode() == 0 && !result.getOutput().isEmpty()) {
-                String line = result.getOutput().get(0).trim();
-                if (!line.isEmpty()) {
-                    File latestFile = new File(line);
-                    if (latestFile.exists()) {
-                        logger.debug("Latest file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
-                        return latestFile;
-                    }
-                }
-            }
-            
-            logger.debug("No files found in directory");
-            return null;
-            
-        } catch (Exception e) {
-            logger.warn("Failed to find latest file using Linux command: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    private File findLatestFileByExtensions(File directory, Set<String> extensions) {
-        logger.debug("Finding latest file with extensions {} using Linux find command in directory: {}", extensions, directory.getAbsolutePath());
-        
-        try {
-            // Build extension pattern for find command
-            String extensionPattern = extensions.stream()
+        return monitoredFileTypes.stream()
+                .map(FileType::getExtension)
+                .map(String::toLowerCase)
                 .map(ext -> ext.startsWith(".") ? ext : "." + ext)
-                .map(ext -> "-name " + ShellCommandUtil.escapeForBash("*" + ext))
-                .collect(Collectors.joining(" -o "));
-            
-            String command = String.format("find %s -type f \\( %s \\) -printf '%%T@ %%p\\n' | sort -nr | head -n1 | cut -d' ' -f2-", 
-                ShellCommandUtil.escapeForBash(directory.getAbsolutePath()), extensionPattern);
-            
-            ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
-            
-            if (result.getExitCode() == 0 && !result.getOutput().isEmpty()) {
-                String line = result.getOutput().get(0).trim();
-                if (!line.isEmpty()) {
-                    File latestFile = new File(line);
-                    if (latestFile.exists()) {
-                        logger.debug("Latest matching file found: {} (modified: {})", latestFile.getName(), new Date(latestFile.lastModified()));
-                        return latestFile;
-                    }
-                }
-            }
-            
-            logger.debug("No matching files found");
-            return null;
-            
-        } catch (Exception e) {
-            logger.warn("Failed to find latest file with extensions using Linux command: {}", e.getMessage());
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Find the most recently modified regular file below the directory.
+     * {@code extensions} filters by file extension (null = all files).
+     * Implemented with java.nio - no external find/sort processes.
+     */
+    private Path findLatestFile(Path directory, Set<String> extensions) {
+        try (Stream<Path> stream = Files.walk(directory)) {
+            return stream
+                    .filter(Files::isRegularFile)
+                    .filter(p -> !Files.isSymbolicLink(p))
+                    .filter(p -> extensions == null || matchesExtension(p, extensions))
+                    .max((a, b) -> {
+                        try {
+                            return Files.getLastModifiedTime(a).compareTo(Files.getLastModifiedTime(b));
+                        } catch (IOException e) {
+                            return 0;
+                        }
+                    })
+                    .orElse(null);
+        } catch (IOException e) {
+            logger.warn("Failed to scan directory {}: {}", directory, e.getMessage());
             return null;
         }
     }
 
-    
+    private boolean matchesExtension(Path file, Set<String> extensions) {
+        String name = file.getFileName().toString().toLowerCase();
+        for (String ext : extensions) {
+            if (name.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public boolean isIntegrationActive(Integration integration) {
-        if (!integration.getIsActive() || !integration.getMonitoringEnabled()) {
+        if (!Boolean.TRUE.equals(integration.getIsActive())
+                || !Boolean.TRUE.equals(integration.getMonitoringEnabled())) {
             return false;
         }
-        
+
         IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         LocalDateTime lastFileFound = cache.getLastFileFound();
         if (lastFileFound == null) {
             return false;
         }
-        
-        LocalDateTime threshold = lastFileFound.plusMinutes(integration.getThresholdMinutes());
+
+        Long thresholdMin = integration.getThresholdMinutes();
+        LocalDateTime threshold = lastFileFound.plusMinutes(thresholdMin != null ? thresholdMin : 15L);
         return LocalDateTime.now().isBefore(threshold);
-    }
-    
-    /**
-     * MEMORY CLEANUP: Remove cache entries for deleted integrations
-     * This prevents memory leaks when integrations are deleted from database
-     */
-    private void cleanupDeletedIntegrations(List<Integration> activeIntegrations) {
-        // Get all active integration IDs
-        Set<Long> activeIntegrationIds = activeIntegrations.stream()
-            .map(Integration::getId)
-            .collect(Collectors.toSet());
-        
-        // Clear cache entries for deleted integrations
-        Set<Long> cachedIntegrationIds = integrationCacheService.getAllCachedIds();
-        for (Long cachedId : cachedIntegrationIds) {
-            if (!activeIntegrationIds.contains(cachedId)) {
-                integrationCacheService.clearCache(cachedId);
-                logger.debug("Cleared cache for deleted integration ID: {}", cachedId);
-            }
-        }
     }
 }

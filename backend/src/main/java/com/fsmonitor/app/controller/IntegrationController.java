@@ -1,12 +1,21 @@
 package com.fsmonitor.app.controller;
 
+import com.fsmonitor.app.dto.IntegrationResponse;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.IntegrationService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -14,34 +23,36 @@ import java.util.List;
 @RequestMapping("/api/integrations")
 public class IntegrationController {
 
-    @Autowired
-    private IntegrationService integrationService;
+    private final IntegrationService integrationService;
+
+    public IntegrationController(IntegrationService integrationService) {
+        this.integrationService = integrationService;
+    }
 
     @GetMapping
-    public ResponseEntity<List<Integration>> getAllIntegrations() {
-        List<Integration> integrations = integrationService.getAllIntegrations();
-        return ResponseEntity.ok(integrations);
+    public ResponseEntity<List<IntegrationResponse>> getAllIntegrations() {
+        return ResponseEntity.ok(integrationService.getAllIntegrations().stream()
+                .map(IntegrationResponse::from)
+                .toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Integration> getIntegrationById(@PathVariable Long id) {
+    public ResponseEntity<IntegrationResponse> getIntegrationById(@PathVariable Long id) {
         return integrationService.getIntegrationById(id)
-                .map(integration -> ResponseEntity.ok().body(integration))
+                .map(integration -> ResponseEntity.ok(IntegrationResponse.from(integration)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Integration> createIntegration(@Valid @RequestBody Integration integration) {
-        Integration createdIntegration = integrationService.createIntegration(integration);
-        return ResponseEntity.ok(createdIntegration);
+    public ResponseEntity<IntegrationResponse> createIntegration(@Valid @RequestBody Integration integration) {
+        return ResponseEntity.ok(IntegrationResponse.from(integrationService.createIntegration(integration)));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Integration> updateIntegration(@PathVariable Long id, @Valid @RequestBody Integration integrationDetails) {
-        Integration updatedIntegration = integrationService.updateIntegration(id, integrationDetails);
-        return ResponseEntity.ok(updatedIntegration);
+    public ResponseEntity<IntegrationResponse> updateIntegration(@PathVariable Long id, @Valid @RequestBody Integration integrationDetails) {
+        return ResponseEntity.ok(IntegrationResponse.from(integrationService.updateIntegration(id, integrationDetails)));
     }
 
     @DeleteMapping("/{id}")

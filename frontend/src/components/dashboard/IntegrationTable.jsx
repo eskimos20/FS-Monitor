@@ -1,30 +1,27 @@
 import React, { useState } from 'react';
-import { Clock, Activity, ChevronDown, ChevronRight, Calendar } from 'lucide-react';
-import { formatTimeAgo, formatCheckInterval, formatIntegrationTimer, formatDateTime, getStatusColor, getStatusText } from '../../utils/formatters';
+import { Clock, Activity, Calendar } from 'lucide-react';
+import { formatCheckInterval, formatIntegrationTimer, formatDateTime, isIntegrationHealthy, getStatusText } from '../../utils/formatters';
+import ExpandableRow from '../ui/ExpandableRow';
+import Toggle from '../ui/Toggle';
+import DetailItem from '../ui/DetailItem';
+
+const DAY_LABELS = {
+  MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun'
+};
 
 const formatSchedule = (item) => {
-  if (!item.scheduleEnabled) {
-    return null;
-  }
-  
-  const dayLabels = {
-    'MON': 'Mon', 'TUE': 'Tue', 'WED': 'Wed', 'THU': 'Thu', 
-    'FRI': 'Fri', 'SAT': 'Sat', 'SUN': 'Sun'
-  };
-  
+  if (!item.scheduleEnabled) return null;
+
   let days = 'All days';
   if (item.activeDays) {
-    const dayList = item.activeDays.split(',').filter(d => d);
+    const dayList = item.activeDays.split(',').filter(Boolean);
     if (dayList.length > 0 && dayList.length < 7) {
-      days = dayList.map(d => dayLabels[d] || d).join(', ');
+      days = dayList.map(d => DAY_LABELS[d] || d).join(', ');
     }
   }
-  
   const startHour = String(item.activeStartHour || 0).padStart(2, '0');
   const endHour = String(item.activeEndHour || 24).padStart(2, '0');
-  const timeRange = `${startHour}:00 - ${endHour}:00`;
-  
-  return `${days} at ${timeRange}`;
+  return `${days} · ${startHour}:00–${endHour}:00`;
 };
 
 const IntegrationTable = ({ integrations, integrationTimers, onToggle }) => {
@@ -35,91 +32,63 @@ const IntegrationTable = ({ integrations, integrationTimers, onToggle }) => {
 
   const toggleExpand = (id) => {
     setExpandedItems(prev => {
-      const newExpanded = { ...prev, [id]: !prev[id] };
-      localStorage.setItem('dashboard_integrations_expanded', JSON.stringify(newExpanded));
-      return newExpanded;
+      const next = { ...prev, [id]: !prev[id] };
+      localStorage.setItem('dashboard_integrations_expanded', JSON.stringify(next));
+      return next;
     });
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {integrations.map((integration) => {
         const isExpanded = expandedItems[integration.id] !== false;
-        const statusColor = getStatusColor(integration.isActive, integration.lastFileFound, integration.thresholdMinutes);
-        
+        const healthy = isIntegrationHealthy(
+          integration.isActive, integration.lastFileFound, integration.thresholdMinutes);
+
         return (
-          <div key={integration.id} className="border border-gray-200 rounded-lg">
-            <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50" onClick={() => toggleExpand(integration.id)}>
-              <div className="flex items-center space-x-3 flex-1">
-                {isExpanded ? (
-                  <ChevronDown className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 text-gray-500 flex-shrink-0" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-gray-900">{integration.name}</h4>
-                  <p className="text-sm text-gray-500 truncate">{integration.path}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-3 ml-4">
-                <div className="flex items-center">
-                  <div className={`w-3 h-3 rounded-full mr-2 ${
-                    statusColor === 'status-active' 
-                      ? 'bg-green-500 animate-pulse' 
-                      : 'bg-red-500'
-                  }`}></div>
-                  <span className={`text-sm ${statusColor}`}>
+          <ExpandableRow
+            key={integration.id}
+            expanded={isExpanded}
+            onToggle={() => toggleExpand(integration.id)}
+            title={integration.name}
+            subtitle={integration.path}
+            aside={
+              <>
+                <div className="flex items-center gap-2">
+                  <span className={`status-dot ${healthy ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                  <span className={`text-xs font-medium ${healthy ? 'text-emerald-600' : 'text-red-600'}`}>
                     {getStatusText(integration.isActive, integration.lastFileFound, integration.thresholdMinutes)}
                   </span>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={integration.isActive}
-                    onChange={() => onToggle(integration.id, integration.isActive)}
-                  />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
-                </label>
-              </div>
+                <Toggle
+                  checked={integration.isActive}
+                  onChange={() => onToggle(integration.id, integration.isActive)}
+                />
+              </>
+            }
+          >
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
+              <DetailItem label="Check Interval">
+                <Clock className="h-3.5 w-3.5 mr-1.5 text-surface-400" />
+                {formatCheckInterval(integration)}
+              </DetailItem>
+              <DetailItem label="Next Run">
+                <Activity className="h-3.5 w-3.5 mr-1.5 text-primary-500" />
+                <span className="font-mono text-xs tnum">
+                  {formatIntegrationTimer(integration, integrationTimers)}
+                </span>
+              </DetailItem>
+              <DetailItem label="Last File Found">
+                {formatDateTime(integration.lastFileFound)}
+              </DetailItem>
+              <DetailItem label="Schedule">
+                <Calendar className="h-3.5 w-3.5 mr-1.5 text-surface-400" />
+                <span className={integration.scheduleEnabled ? '' : 'text-surface-400'}>
+                  {formatSchedule(integration) || 'Always active'}
+                </span>
+              </DetailItem>
             </div>
-
-            {isExpanded && (
-              <div className="px-4 pb-4 pt-0 border-t border-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Check Interval</p>
-                    <div className="flex items-center text-sm text-gray-900">
-                      <Clock className="h-4 w-4 mr-1" />
-                      {formatCheckInterval(integration)}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Next Run</p>
-                    <div className="flex items-center text-sm text-gray-900">
-                      <Activity className="h-4 w-4 mr-1 text-primary-500" />
-                      <span className="font-mono text-xs">
-                        {formatIntegrationTimer(integration, integrationTimers)}
-                      </span>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Last File Found</p>
-                    <p className="text-sm text-gray-900">{formatDateTime(integration.lastFileFound)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Schedule</p>
-                    <div className="flex items-center text-sm text-gray-900">
-                      <Calendar className="h-4 w-4 mr-1 text-blue-500" />
-                      <span className={integration.scheduleEnabled ? '' : 'text-gray-400'}>
-                        {formatSchedule(integration) || 'Always active'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          </ExpandableRow>
         );
       })}
     </div>

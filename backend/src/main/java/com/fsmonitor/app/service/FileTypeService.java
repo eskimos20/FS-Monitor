@@ -2,7 +2,6 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.repository.FileTypeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,8 +11,11 @@ import java.util.Optional;
 @Service
 public class FileTypeService {
 
-    @Autowired
-    private FileTypeRepository fileTypeRepository;
+    private final FileTypeRepository fileTypeRepository;
+
+    public FileTypeService(FileTypeRepository fileTypeRepository) {
+        this.fileTypeRepository = fileTypeRepository;
+    }
 
     @Transactional
     public List<FileType> getAllFileTypes() {

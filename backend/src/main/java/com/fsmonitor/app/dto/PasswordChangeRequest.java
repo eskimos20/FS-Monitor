@@ -1,6 +1,8 @@
 package com.fsmonitor.app.dto;
 
+import com.fsmonitor.app.util.PasswordPolicy;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class PasswordChangeRequest {
@@ -8,11 +10,12 @@ public class PasswordChangeRequest {
     private String currentPassword;
 
     @NotBlank
-    @Size(min = 6, max = 120)
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = 120)
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = PasswordPolicy.DESCRIPTION)
     private String newPassword;
 
     @NotBlank
-    @Size(min = 6, max = 120)
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = 120)
     private String confirmPassword;
 
     public PasswordChangeRequest() {}

@@ -17,14 +17,16 @@ public class UserPrincipal implements UserDetails {
     private String email;
     private String password;
     private Boolean passwordChanged;
+    private Integer tokenVersion;
     private transient Collection<? extends GrantedAuthority> authorities;
 
-    public UserPrincipal(Long id, String username, String email, String password, Boolean passwordChanged, Collection<? extends GrantedAuthority> authorities) {
+    public UserPrincipal(Long id, String username, String email, String password, Boolean passwordChanged, Integer tokenVersion, Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.password = password;
         this.passwordChanged = passwordChanged;
+        this.tokenVersion = tokenVersion;
         this.authorities = authorities;
     }
 
@@ -39,6 +41,7 @@ public class UserPrincipal implements UserDetails {
                 user.getEmail(),
                 user.getPassword(),
                 user.getPasswordChanged(),
+                user.getTokenVersion(),
                 authorities
         );
     }
@@ -53,6 +56,10 @@ public class UserPrincipal implements UserDetails {
 
     public Boolean getPasswordChanged() {
         return passwordChanged;
+    }
+
+    public Integer getTokenVersion() {
+        return tokenVersion == null ? 0 : tokenVersion;
     }
 
     @Override

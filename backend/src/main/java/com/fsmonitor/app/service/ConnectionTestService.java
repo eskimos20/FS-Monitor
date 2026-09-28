@@ -2,7 +2,6 @@ package com.fsmonitor.app.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -20,8 +19,11 @@ public class ConnectionTestService {
     private static final Logger logger = LoggerFactory.getLogger(ConnectionTestService.class);
     private static final int TIMEOUT_MS = 3000;
 
-    @Autowired
-    private PingServiceChecker pingChecker;
+    private final PingServiceChecker pingChecker;
+
+    public ConnectionTestService(PingServiceChecker pingChecker) {
+        this.pingChecker = pingChecker;
+    }
 
     public Map<String, Object> testConnection(String host, Integer port, String path) {
         Map<String, Object> result = new HashMap<>();

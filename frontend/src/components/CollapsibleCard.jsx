@@ -17,21 +17,26 @@ const CollapsibleCard = ({ title, icon: Icon, children, defaultOpen = true, stor
   }, [isOpen, storageKey]);
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="card !p-0 overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-6 border-b border-gray-200 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface-50/60 transition-colors"
       >
-        <div className="flex items-center space-x-2">
-          {Icon && <Icon className="h-5 w-5 text-gray-600" />}
-          <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+        <div className="flex items-center space-x-2.5">
+          {Icon && (
+            <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-surface-100">
+              <Icon className="h-4 w-4 text-surface-600" />
+            </div>
+          )}
+          <h2 className="text-base font-semibold text-surface-800">{title}</h2>
         </div>
         {isOpen ? (
-          <ChevronUp className="h-5 w-5 text-gray-400" />
+          <ChevronUp className="h-4 w-4 text-surface-400" />
         ) : (
-          <ChevronDown className="h-5 w-5 text-gray-400" />
+          <ChevronDown className="h-4 w-4 text-surface-400" />
         )}
       </button>
+      {isOpen && <div className="border-t border-surface-100" />}
       
       {isOpen && (
         <div>

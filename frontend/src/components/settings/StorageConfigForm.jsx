@@ -59,14 +59,14 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="p-4 border-b border-gray-200">
+    <div className="modal-overlay">
+      <div className="modal-panel max-w-md">
+        <div className="modal-header">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-800">
+            <h3 className="modal-title">
               {storageConfig ? 'Edit Storage Config' : 'Add Storage Config'}
             </h3>
-            <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onCancel} className="text-surface-400 hover:text-surface-600">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -75,7 +75,7 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
               <button
                 type="button"
                 onClick={() => setShowCopyModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+                className="btn-secondary"
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy existing
@@ -86,7 +86,7 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-surface-700 mb-1">
               Name
             </label>
             <input
@@ -100,7 +100,7 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-surface-700 mb-1">
               Path
             </label>
             <div className="flex space-x-2">
@@ -130,14 +130,14 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
                 name="recursive"
                 checked={formData.recursive}
                 onChange={handleChange}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="text-sm font-medium text-gray-700">Scan subdirectories (recursive)</span>
+              <span className="text-sm font-medium text-surface-700">Scan subdirectories (recursive)</span>
             </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-surface-700 mb-1">
               Check Interval
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -171,9 +171,9 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
                 name="active"
                 checked={formData.active}
                 onChange={handleChange}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="text-sm font-medium text-gray-700">Active</span>
+              <span className="text-sm font-medium text-surface-700">Active</span>
             </label>
           </div>
 
@@ -199,15 +199,15 @@ const StorageConfigForm = ({ storageConfig, allStorageConfigs, onSave, onCancel 
 
       {/* Copy Existing Modal */}
       {showCopyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Storage Config</h3>
-            <p className="text-sm text-gray-600 mb-4">Select a storage config to copy its settings:</p>
+        <div className="modal-overlay z-[60]">
+          <div className="modal-panel max-w-md p-6">
+            <h3 className="text-lg font-semibold text-surface-900 mb-4">Copy Existing Storage Config</h3>
+            <p className="text-sm text-surface-600 mb-4">Select a storage config to copy its settings:</p>
             
             <select
               value={selectedToCopy}
               onChange={(e) => setSelectedToCopy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+              className="input-field mb-4"
             >
               <option value="">-- Select Storage Config --</option>
               {allStorageConfigs.map((item) => (

@@ -1,7 +1,9 @@
 package com.fsmonitor.app.dto;
 
+import com.fsmonitor.app.util.PasswordPolicy;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class SignUpRequest {
@@ -15,7 +17,8 @@ public class SignUpRequest {
     private String email;
 
     @NotBlank
-    @Size(min = 6, max = 120)
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = 120)
+    @Pattern(regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$", message = PasswordPolicy.DESCRIPTION)
     private String password;
 
     public SignUpRequest() {}

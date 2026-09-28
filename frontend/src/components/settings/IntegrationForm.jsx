@@ -79,14 +79,14 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+    <div className="modal-overlay">
+      <div className="modal-panel max-w-2xl">
+        <div className="modal-header">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-surface-900">
               {integration ? 'Edit Integration' : 'New Integration'}
             </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-surface-400 hover:text-surface-600">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -95,7 +95,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
               <button
                 type="button"
                 onClick={() => setShowCopyModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+                className="btn-secondary"
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy existing
@@ -108,7 +108,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
           {/* Basic Info */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Name</label>
               <input
                 type="text"
                 value={formData.name}
@@ -118,7 +118,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Path</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Path</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -143,7 +143,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
           {/* Intervals */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Check Interval</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Check Interval</label>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
@@ -164,7 +164,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Threshold</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Threshold</label>
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="number"
@@ -194,29 +194,29 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
                 type="checkbox"
                 checked={formData.monitoringEnabled}
                 onChange={(e) => setFormData({ ...formData, monitoringEnabled: e.target.checked })}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="ml-2 text-sm text-gray-700">Monitoring Enabled</span>
+              <span className="ml-2 text-sm text-surface-700">Monitoring Enabled</span>
             </label>
           </div>
 
           {/* Schedule Settings */}
-          <div className="border border-gray-200 rounded-lg p-4">
+          <div className="border border-surface-200 rounded-lg p-4">
             <label className="flex items-center mb-3">
               <input
                 type="checkbox"
                 checked={formData.scheduleEnabled || false}
                 onChange={(e) => setFormData({ ...formData, scheduleEnabled: e.target.checked })}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="ml-2 text-sm font-medium text-gray-700">Enable Schedule</span>
+              <span className="ml-2 text-sm font-medium text-surface-700">Enable Schedule</span>
             </label>
 
             {formData.scheduleEnabled && (
-              <div className="space-y-4 mt-3 pt-3 border-t border-gray-200">
+              <div className="space-y-4 mt-3 pt-3 border-t border-surface-200">
                 {/* Day Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Active Days</label>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">Active Days</label>
                   <div className="flex gap-2">
                     {DAYS.map(day => (
                       <button
@@ -226,7 +226,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
                         className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                           isDaySelected(day.key)
                             ? 'bg-primary-600 text-white border-primary-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            : 'bg-white text-surface-700 border-surface-300 hover:bg-surface-50'
                         }`}
                       >
                         {day.label}
@@ -237,7 +237,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
 
                 {/* Time Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
                     Active Hours: {String(formData.activeStartHour || 0).padStart(2, '0')}:00 - {String(formData.activeEndHour || 24).padStart(2, '0')}:00
                   </label>
                   <div className="flex items-center gap-4">
@@ -253,10 +253,10 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
                             setFormData({ ...formData, activeStartHour: val });
                           }
                         }}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                        className="w-full h-2 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
                     </div>
-                    <span className="text-sm text-gray-500 w-8">to</span>
+                    <span className="text-sm text-surface-500 w-8">to</span>
                     <div className="flex-1">
                       <input
                         type="range"
@@ -269,11 +269,11 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
                             setFormData({ ...formData, activeEndHour: val });
                           }
                         }}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                        className="w-full h-2 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
                     </div>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-surface-400 mt-1">
                     <span>00:00</span>
                     <span>06:00</span>
                     <span>12:00</span>
@@ -282,7 +282,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-surface-500">
                   Monitoring will only run on selected days between the specified hours.
                 </p>
               </div>
@@ -290,7 +290,7 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t border-surface-200">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
@@ -311,15 +311,15 @@ const IntegrationForm = ({ integration, allIntegrations, fileTypes, onSave, onCl
 
       {/* Copy Existing Modal */}
       {showCopyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Integration</h3>
-            <p className="text-sm text-gray-600 mb-4">Select an integration to copy its settings:</p>
+        <div className="modal-overlay z-[60]">
+          <div className="modal-panel max-w-md p-6">
+            <h3 className="text-lg font-semibold text-surface-900 mb-4">Copy Existing Integration</h3>
+            <p className="text-sm text-surface-600 mb-4">Select an integration to copy its settings:</p>
             
             <select
               value={selectedToCopy}
               onChange={(e) => setSelectedToCopy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+              className="input-field mb-4"
             >
               <option value="">-- Select Integration --</option>
               {allIntegrations.map((item) => (

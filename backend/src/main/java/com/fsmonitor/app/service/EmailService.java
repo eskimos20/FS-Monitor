@@ -3,7 +3,6 @@ package com.fsmonitor.app.service;
 import com.fsmonitor.app.entity.MailConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Service;
 
@@ -15,8 +14,11 @@ import java.util.Properties;
 public class EmailService {
     private static final Logger logger = LoggerFactory.getLogger(EmailService.class);
 
-    @Autowired
-    private MailConfigService mailConfigService;
+    private final MailConfigService mailConfigService;
+
+    public EmailService(MailConfigService mailConfigService) {
+        this.mailConfigService = mailConfigService;
+    }
 
     public boolean sendEmail(String subject, String body) {
         logger.info("Attempting to send email to {} with subject: {}", 

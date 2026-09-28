@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, storageKey }) => {
   const getInitialState = () => {
@@ -17,24 +17,24 @@ const CollapsibleSection = ({ title, icon: Icon, children, defaultOpen = true, s
   }, [isOpen, storageKey]);
 
   return (
-    <div className="card">
+    <div className="card !p-0 overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-50 transition-colors"
       >
-        <div className="flex items-center">
-          {Icon && <Icon className="h-5 w-5 text-primary-600 mr-3" />}
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <span className="h-8 w-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+              <Icon className="h-4 w-4" />
+            </span>
+          )}
+          <h2 className="section-title">{title}</h2>
         </div>
-        {isOpen ? (
-          <ChevronUp className="h-5 w-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="h-5 w-5 text-gray-400" />
-        )}
+        <ChevronDown className={`h-4 w-4 text-surface-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      
+
       {isOpen && (
-        <div className="px-4 pb-4">
+        <div className="px-5 pb-5 pt-4 border-t border-surface-100">
           {children}
         </div>
       )}

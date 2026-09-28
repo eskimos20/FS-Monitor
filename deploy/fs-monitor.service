@@ -1,0 +1,44 @@
+[Unit]
+Description=FS-Monitor - File, Service and Storage Monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fsmonitor
+Group=fsmonitor
+EnvironmentFile=/etc/fs-monitor/fs-monitor.env
+WorkingDirectory=/opt/fs-monitor
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/fs-monitor/fs-monitor.jar --spring.profiles.active=production
+SuccessExitStatus=143
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+# Hardening (RHEL9 / systemd 252+)
+# NOTE: the delete-service feature may need write access to configured
+# paths. If you do not use it you can tighten this to ProtectSystem=strict
+# together with ReadWritePaths=/var/lib/fs-monitor.
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Resources
+LimitNOFILE=65536
+MemoryMax=1G
+
+# Logging goes to journald: journalctl -u fs-monitor -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fs-monitor
+
+[Install]
+WantedBy=multi-user.target

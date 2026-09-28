@@ -189,14 +189,14 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 rounded-t-lg">
+    <div className="modal-overlay">
+      <div className="modal-panel max-w-2xl">
+        <div className="modal-header">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-surface-900">
               {service ? 'Edit Service' : 'New Service'}
             </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <button onClick={onClose} className="text-surface-400 hover:text-surface-600">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -205,7 +205,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
               <button
                 type="button"
                 onClick={() => setShowCopyModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+                className="btn-secondary"
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy existing
@@ -217,7 +217,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Name</label>
               <input
                 type="text"
                 value={formData.name}
@@ -227,7 +227,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Type</label>
               <select
                 value={formData.type}
                 onChange={(e) => handleTypeChange(e.target.value)}
@@ -265,7 +265,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Host</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Host</label>
               <input
                 type="text"
                 value={formData.host}
@@ -276,7 +276,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-surface-700 mb-1">
                 Port {formData.type !== 'CUSTOM' && `(Default: ${DEFAULT_PORTS[formData.type] || 'N/A'})`}
               </label>
               <input
@@ -291,7 +291,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
           {(formData.type === 'WEB' || formData.type === 'HTTPS' || (formData.type === 'CUSTOM' && formData.checkMethod === 'HTTP')) && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Path</label>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Path</label>
               <input
                 type="text"
                 value={formData.path}
@@ -304,16 +304,16 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
           {/* Credentials Section for FTP, SFTP, SMB */}
           {(formData.type === 'FTP' || formData.type === 'SFTP' || formData.type === 'SMB') && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="bg-surface-50 border border-surface-200 rounded-lg p-4">
               <div className="flex items-center mb-3">
                 <input
                   type="checkbox"
                   id="useCredentials"
                   checked={formData.useCredentials}
                   onChange={(e) => setFormData({ ...formData, useCredentials: e.target.checked })}
-                  className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                  className="rounded border-surface-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
                 />
-                <label htmlFor="useCredentials" className="ml-2 text-sm font-medium text-gray-700">
+                <label htmlFor="useCredentials" className="ml-2 text-sm font-medium text-surface-700">
                   Use Credentials (test actual {formData.type} access)
                 </label>
               </div>
@@ -321,10 +321,10 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
               {formData.useCredentials && (
                 <div className="space-y-4 mt-4">
                   {/* Test Credentials Button */}
-                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Test Connection</p>
-                      <p className="text-xs text-gray-600">Verify credentials and access</p>
+                      <p className="text-sm font-medium text-surface-900">Test Connection</p>
+                      <p className="text-xs text-surface-600">Verify credentials and access</p>
                     </div>
                     <button
                       type="button"
@@ -351,13 +351,13 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                             {testResult.message}
                           </p>
                           {testResult.responseTime && (
-                            <p className="text-xs text-gray-600 mt-1 flex items-center">
+                            <p className="text-xs text-surface-600 mt-1 flex items-center">
                               <Clock className="h-3 w-3 mr-1" />
                               Response time: {testResult.responseTime}ms
                             </p>
                           )}
                           {testResult.details && (
-                            <pre className="text-xs text-gray-700 mt-2 whitespace-pre-wrap font-mono bg-white p-2 rounded">
+                            <pre className="text-xs text-surface-700 mt-2 whitespace-pre-wrap font-mono bg-white p-2 rounded">
                               {testResult.details}
                             </pre>
                           )}
@@ -379,8 +379,8 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Username {formData.type === 'SMB' && <span className="text-xs text-gray-500">(DOMAIN\user or user)</span>}
+                      <label className="block text-sm font-medium text-surface-700 mb-1">
+                        Username {formData.type === 'SMB' && <span className="text-xs text-surface-500">(DOMAIN\user or user)</span>}
                       </label>
                       <input
                         type="text"
@@ -391,7 +391,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-surface-700 mb-1">
                         Share/Path
                       </label>
                       <input
@@ -406,7 +406,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
                   {formData.type === 'SFTP' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Authentication Method</label>
+                      <label className="block text-sm font-medium text-surface-700 mb-2">Authentication Method</label>
                       <div className="flex gap-4 mb-3">
                         <label className="flex items-center cursor-pointer">
                           <input
@@ -417,7 +417,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                             onChange={(e) => setAuthMethod(e.target.value)}
                             className="mr-2"
                           />
-                          <span className="text-sm text-gray-700">Password</span>
+                          <span className="text-sm text-surface-700">Password</span>
                         </label>
                         <label className="flex items-center cursor-pointer">
                           <input
@@ -428,7 +428,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                             onChange={(e) => setAuthMethod(e.target.value)}
                             className="mr-2"
                           />
-                          <span className="text-sm text-gray-700">SSH Private Key</span>
+                          <span className="text-sm text-surface-700">SSH Private Key</span>
                         </label>
                       </div>
                     </div>
@@ -436,7 +436,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
                   {(formData.type !== 'SFTP' || authMethod === 'password') && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                      <label className="block text-sm font-medium text-surface-700 mb-1">Password</label>
                       <input
                         type="password"
                         value={formData.password}
@@ -449,7 +449,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
                   {formData.type === 'SFTP' && authMethod === 'key' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-surface-700 mb-1">
                         SSH Private Key
                       </label>
                       <textarea
@@ -459,7 +459,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                         rows="6"
                         placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Paste your SSH private key here</p>
+                      <p className="text-xs text-surface-500 mt-1">Paste your SSH private key here</p>
                     </div>
                   )}
                 </div>
@@ -468,11 +468,11 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
           )}
 
           {/* Test Connection Section - Available for all service types */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h4 className="text-sm font-medium text-gray-900">Test Connection</h4>
-                <p className="text-xs text-gray-600">Test which methods work with {formData.host}:{formData.port}</p>
+                <h4 className="text-sm font-medium text-surface-900">Test Connection</h4>
+                <p className="text-xs text-surface-600">Test which methods work with {formData.host}:{formData.port}</p>
               </div>
               <button
                 type="button"
@@ -488,13 +488,13 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
             {testResult && !testResult.error && (
               <div className="space-y-2">
                 <div className="bg-white rounded-lg p-2 mb-3">
-                  <p className="text-xs font-medium text-gray-700">
+                  <p className="text-xs font-medium text-surface-700">
                     ✨ Recommended: <span className="text-primary-600">{testResult.recommended}</span>
                   </p>
                 </div>
 
                 {formData.type === 'CUSTOM' && (
-                  <p className="text-xs font-medium text-gray-700 mb-2">Select a method to use:</p>
+                  <p className="text-xs font-medium text-surface-700 mb-2">Select a method to use:</p>
                 )}
                 
                 {testResult.methods.map((method, index) => (
@@ -518,9 +518,9 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                         )}
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-gray-900">{method.name}</p>
+                            <p className="text-sm font-medium text-surface-900">{method.name}</p>
                             {testResult.recommended === method.method && (
-                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                              <span className="text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
                                 Recommended
                               </span>
                             )}
@@ -530,22 +530,22 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">{method.description}</p>
+                          <p className="text-xs text-surface-500 mt-0.5">{method.description}</p>
                           <div className="mt-1 flex items-center gap-3">
                             <p className={`text-xs font-medium ${method.success ? 'text-green-600' : 'text-red-600'}`}>
                               {method.success ? '✓ Success' : '✗ Failed'}
                             </p>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-surface-500">
                               Tested with {formData.host}:{formData.port}
                             </p>
                             {method.success && (
-                              <div className="flex items-center text-xs text-gray-500">
+                              <div className="flex items-center text-xs text-surface-500">
                                 <Clock className="h-3 w-3 mr-1" />
                                 {method.responseTime}ms
                               </div>
                             )}
                           </div>
-                          <p className="text-xs text-gray-600 mt-1 italic">{method.message}</p>
+                          <p className="text-xs text-surface-600 mt-1 italic">{method.message}</p>
                         </div>
                       </div>
                     </div>
@@ -562,7 +562,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
             {!testResult && (
               <div className="text-center py-4">
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-surface-600">
                   Click "Test All Methods" to automatically detect which protocols work
                 </p>
               </div>
@@ -571,7 +571,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
           {formData.type === 'CUSTOM' && !testResult && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-surface-700 mb-2">
                 Check Method (or test connection above for recommendation)
               </label>
               <select
@@ -587,7 +587,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Check Interval (minutes)</label>
+            <label className="block text-sm font-medium text-surface-700 mb-1">Check Interval (minutes)</label>
             <input
               type="number"
               value={formData.checkIntervalMinutes}
@@ -598,22 +598,22 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
           </div>
 
           {/* Schedule Settings */}
-          <div className="border border-gray-200 rounded-lg p-4">
+          <div className="border border-surface-200 rounded-lg p-4">
             <label className="flex items-center mb-3">
               <input
                 type="checkbox"
                 checked={formData.scheduleEnabled || false}
                 onChange={(e) => setFormData({ ...formData, scheduleEnabled: e.target.checked })}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="rounded border-surface-300 text-primary-600 focus:ring-primary-500"
               />
-              <span className="ml-2 text-sm font-medium text-gray-700">Enable Schedule</span>
+              <span className="ml-2 text-sm font-medium text-surface-700">Enable Schedule</span>
             </label>
 
             {formData.scheduleEnabled && (
-              <div className="space-y-4 mt-3 pt-3 border-t border-gray-200">
+              <div className="space-y-4 mt-3 pt-3 border-t border-surface-200">
                 {/* Day Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Active Days</label>
+                  <label className="block text-sm font-medium text-surface-700 mb-2">Active Days</label>
                   <div className="flex gap-2">
                     {DAYS.map(day => (
                       <button
@@ -623,7 +623,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                         className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
                           isDaySelected(day.key)
                             ? 'bg-primary-600 text-white border-primary-600'
-                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                            : 'bg-white text-surface-700 border-surface-300 hover:bg-surface-50'
                         }`}
                       >
                         {day.label}
@@ -634,7 +634,7 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
                 {/* Time Range */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-surface-700 mb-2">
                     Active Hours: {String(formData.activeStartHour || 0).padStart(2, '0')}:00 - {String(formData.activeEndHour || 24).padStart(2, '0')}:00
                   </label>
                   <div className="flex items-center gap-4">
@@ -650,10 +650,10 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                             setFormData({ ...formData, activeStartHour: val });
                           }
                         }}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                        className="w-full h-2 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
                     </div>
-                    <span className="text-sm text-gray-500 w-8">to</span>
+                    <span className="text-sm text-surface-500 w-8">to</span>
                     <div className="flex-1">
                       <input
                         type="range"
@@ -666,11 +666,11 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                             setFormData({ ...formData, activeEndHour: val });
                           }
                         }}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                        className="w-full h-2 bg-surface-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
                       />
                     </div>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <div className="flex justify-between text-xs text-surface-400 mt-1">
                     <span>00:00</span>
                     <span>06:00</span>
                     <span>12:00</span>
@@ -679,14 +679,14 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
                   </div>
                 </div>
 
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-surface-500">
                   Monitoring will only run on selected days between the specified hours.
                 </p>
               </div>
             )}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t border-surface-200">
             <button type="button" onClick={onClose} className="btn-secondary">
               Cancel
             </button>
@@ -699,15 +699,15 @@ const ServiceForm = ({ service, allServices, onSave, onClose }) => {
 
       {/* Copy Existing Modal */}
       {showCopyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Service</h3>
-            <p className="text-sm text-gray-600 mb-4">Select a service to copy its settings:</p>
+        <div className="modal-overlay z-[60]">
+          <div className="modal-panel max-w-md p-6">
+            <h3 className="text-lg font-semibold text-surface-900 mb-4">Copy Existing Service</h3>
+            <p className="text-sm text-surface-600 mb-4">Select a service to copy its settings:</p>
             
             <select
               value={selectedToCopy}
               onChange={(e) => setSelectedToCopy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+              className="input-field mb-4"
             >
               <option value="">-- Select Service --</option>
               {allServices.map((item) => (

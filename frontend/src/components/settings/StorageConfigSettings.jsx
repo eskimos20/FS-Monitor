@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, HardDrive } from 'lucide-react';
+import { Plus, HardDrive } from 'lucide-react';
 import StorageConfigForm from './StorageConfigForm';
+import EmptyState from '../ui/EmptyState';
+import SettingsItemRow from '../ui/SettingsItemRow';
+import StatusBadge from '../ui/StatusBadge';
 
 const StorageConfigSettings = ({ storageConfigs, onSave, onDelete }) => {
   const [showForm, setShowForm] = useState(false);
@@ -35,57 +38,43 @@ const StorageConfigSettings = ({ storageConfigs, onSave, onDelete }) => {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-gray-600">
+      <div className="flex justify-between items-center gap-4">
+        <p className="text-sm text-surface-500">
           Monitor disk space usage in directories
         </p>
-        <button onClick={handleAdd} className="btn-primary flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Add</span>
+        <button onClick={handleAdd} className="btn-primary flex-shrink-0">
+          <Plus className="h-4 w-4 mr-1.5" />
+          Add Storage Config
         </button>
       </div>
 
       {storageConfigs.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <HardDrive className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-          <p>No storage configurations yet</p>
-        </div>
+        <EmptyState
+          icon={HardDrive}
+          title="No storage configurations"
+          description="Add a storage config to track disk usage for a directory."
+        />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {storageConfigs.map((config) => (
-            <div key={config.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-2">
-                  <h4 className="font-medium text-gray-900">{config.name}</h4>
-                  {!config.active && (
-                    <span className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded">
-                      Inactive
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-600 mb-2">{config.path}</p>
-                <div className="flex items-center space-x-4 text-xs text-gray-500">
-                  <span>Recursive: {config.recursive ? 'Yes' : 'No'}</span>
-                  <span>Check every: {config.checkIntervalMinutes} {(config.intervalUnit || 'MINUTES').toLowerCase()}</span>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2 ml-4">
-                <button
-                  onClick={() => handleEdit(config)}
-                  className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                  title="Edit"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => handleDelete(config.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            <SettingsItemRow
+              key={config.id}
+              title={config.name}
+              subtitle={
+                <>
+                  <span className="font-mono">{config.path}</span>
+                  {` · ${config.recursive ? 'Recursive' : 'Top level'} · every ${config.checkIntervalMinutes} ${(config.intervalUnit || 'MINUTES').toLowerCase()}`}
+                </>
+              }
+              meta={
+                <StatusBadge
+                  variant={config.active ? 'success' : 'neutral'}
+                  label={config.active ? 'Active' : 'Inactive'}
+                />
+              }
+              onEdit={() => handleEdit(config)}
+              onDelete={() => handleDelete(config.id)}
+            />
           ))}
         </div>
       )}

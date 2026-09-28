@@ -1,21 +1,33 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import ChangePassword from './pages/ChangePassword';
-import Dashboard from './pages/DashboardPage';
-import Settings from './pages/SettingsPage';
-import LogConfigsPage from './pages/settings/LogConfigsPage';
 import Layout from './components/Layout';
+
+// Route-level code splitting: each page loads on demand
+const Login = lazy(() => import('./pages/Login'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const Dashboard = lazy(() => import('./pages/DashboardPage'));
+const Settings = lazy(() => import('./pages/SettingsPage'));
+const LogConfigsPage = lazy(() => import('./pages/settings/LogConfigsPage'));
+
+const FullScreenLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-surface-50">
+    <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+  </div>
+);
+
+const RouteLoader = () => (
+  <div className="flex items-center justify-center py-24">
+    <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+  </div>
+);
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   if (!user) {
@@ -33,40 +45,43 @@ const AppRoutes = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   return (
-    <Routes>
-      <Route path="/login" element={
-        !user ? <Login /> :
-        user.mustChangePassword ? <Navigate to="/change-password" replace /> :
-        <Navigate to="/dashboard" replace />
-      } />
-      <Route path="/change-password" element={
-        !user ? <Navigate to="/login" replace /> :
-        !user.mustChangePassword ? <Navigate to="/dashboard" replace /> :
-        <ChangePassword />
-      } />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="settings/log-configs" element={<LogConfigsPage />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+    <Suspense fallback={<FullScreenLoader />}>
+      <Routes>
+        <Route path="/login" element={
+          !user ? <Login /> :
+          user.mustChangePassword ? <Navigate to="/change-password" replace /> :
+          <Navigate to="/dashboard" replace />
+        } />
+        <Route path="/change-password" element={
+          !user ? <Navigate to="/login" replace /> :
+          <ChangePassword />
+        } />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="dashboard" element={
+            <Suspense fallback={<RouteLoader />}><Dashboard /></Suspense>
+          } />
+          <Route path="settings" element={
+            <Suspense fallback={<RouteLoader />}><Settings /></Suspense>
+          } />
+          <Route path="settings/log-configs" element={
+            <Suspense fallback={<RouteLoader />}><LogConfigsPage /></Suspense>
+          } />
+        </Route>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Suspense>
   );
 };
 

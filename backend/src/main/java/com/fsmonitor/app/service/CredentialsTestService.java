@@ -4,7 +4,6 @@ import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.entity.ServiceType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,14 +12,17 @@ import java.util.Map;
 public class CredentialsTestService {
     private static final Logger logger = LoggerFactory.getLogger(CredentialsTestService.class);
 
-    @Autowired
-    private FtpServiceChecker ftpChecker;
+    private final FtpServiceChecker ftpChecker;
+    private final SftpServiceChecker sftpChecker;
+    private final SmbServiceChecker smbChecker;
 
-    @Autowired
-    private SftpServiceChecker sftpChecker;
-
-    @Autowired
-    private SmbServiceChecker smbChecker;
+    public CredentialsTestService(FtpServiceChecker ftpChecker,
+                                  SftpServiceChecker sftpChecker,
+                                  SmbServiceChecker smbChecker) {
+        this.ftpChecker = ftpChecker;
+        this.sftpChecker = sftpChecker;
+        this.smbChecker = smbChecker;
+    }
 
     public Map<String, Object> testCredentials(Service service) {
         Map<String, Object> result = new HashMap<>();

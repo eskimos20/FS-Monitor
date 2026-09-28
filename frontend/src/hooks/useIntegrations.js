@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { integrationAPI, cacheAPI } from '../api/axios';
+import { usePolling } from './usePolling';
 
 export const useIntegrations = (refreshInterval = null) => {
   const [integrations, setIntegrations] = useState([]);
@@ -66,14 +67,7 @@ export const useIntegrations = (refreshInterval = null) => {
     }
   };
 
-  useEffect(() => {
-    fetchIntegrations();
-    
-    if (refreshInterval && refreshInterval > 0) {
-      const interval = setInterval(fetchIntegrations, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [fetchIntegrations, refreshInterval]);
+  usePolling(fetchIntegrations, refreshInterval);
 
   return {
     integrations,

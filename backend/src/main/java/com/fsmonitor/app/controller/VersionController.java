@@ -12,13 +12,16 @@ import java.util.Map;
 @RequestMapping("/api/version")
 public class VersionController {
 
+    private static final long SERVER_START_TIME = System.currentTimeMillis();
+
     @Value("${application.version:1.0.0}")
     private String version;
 
     @GetMapping
-    public Map<String, String> getVersion() {
-        Map<String, String> response = new HashMap<>();
+    public Map<String, Object> getVersion() {
+        Map<String, Object> response = new HashMap<>();
         response.put("version", version);
+        response.put("serverStartTime", SERVER_START_TIME);
         return response;
     }
 }

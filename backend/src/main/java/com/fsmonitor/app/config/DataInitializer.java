@@ -7,31 +7,41 @@ import com.fsmonitor.app.entity.User;
 import com.fsmonitor.app.repository.FileTypeRepository;
 import com.fsmonitor.app.repository.RoleRepository;
 import com.fsmonitor.app.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
 
-    @Autowired
-    private UserRepository userRepository;
+    private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
 
-    @Autowired
-    private RoleRepository roleRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final FileTypeRepository fileTypeRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final String adminPassword;
 
-    @Autowired
-    private FileTypeRepository fileTypeRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public DataInitializer(UserRepository userRepository,
+                           RoleRepository roleRepository,
+                           FileTypeRepository fileTypeRepository,
+                           PasswordEncoder passwordEncoder,
+                           @Value("${fsmonitor.admin-password:}") String adminPassword) {
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.fileTypeRepository = fileTypeRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.adminPassword = adminPassword;
+    }
 
     @Override
-    public void run(String... args) throws Exception {
+    public void run(String... args) {
         initializeRoles();
         initializeDefaultAdmin();
         initializeFileTypes();
@@ -39,13 +49,11 @@ public class DataInitializer implements CommandLineRunner {
 
     private void initializeRoles() {
         if (!roleRepository.existsByName(RoleName.ROLE_ADMIN)) {
-            Role adminRole = new Role(RoleName.ROLE_ADMIN);
-            roleRepository.save(adminRole);
+            roleRepository.save(new Role(RoleName.ROLE_ADMIN));
         }
 
         if (!roleRepository.existsByName(RoleName.ROLE_USER)) {
-            Role userRole = new Role(RoleName.ROLE_USER);
-            roleRepository.save(userRole);
+            roleRepository.save(new Role(RoleName.ROLE_USER));
         }
     }
 
@@ -53,32 +61,42 @@ public class DataInitializer implements CommandLineRunner {
         if (!userRepository.existsByUsername("admin")) {
             User admin = new User();
             admin.setUsername("admin");
-            admin.setEmail("admin@fsmonitor.com");
-            admin.setPassword(passwordEncoder.encode("password"));
+            admin.setEmail("admin@fsmonitor.local");
+
+            boolean usingDefaultPassword = adminPassword == null || adminPassword.isBlank();
+            admin.setPassword(passwordEncoder.encode(usingDefaultPassword ? "password" : adminPassword));
             admin.setPasswordChanged(false);
 
             Role adminRole = roleRepository.findByName(RoleName.ROLE_ADMIN)
-                    .orElseThrow(() -> new RuntimeException("Admin role not found"));
-            
-            admin.setRoles(new HashSet<>(Arrays.asList(adminRole)));
+                    .orElseThrow(() -> new IllegalStateException("Admin role not found"));
+
+            admin.setRoles(Set.of(adminRole));
             userRepository.save(admin);
+
+            if (usingDefaultPassword) {
+                logger.warn("Created default admin account (admin / password). " +
+                        "The password must be changed at first login. " +
+                        "Set FS_MONITOR_ADMIN_PASSWORD to choose the initial password.");
+            } else {
+                logger.info("Created admin account with password from FS_MONITOR_ADMIN_PASSWORD");
+            }
         }
     }
 
     private void initializeFileTypes() {
         if (fileTypeRepository.count() == 0) {
-            FileType pdf = new FileType(".pdf", "PDF Document");
-            FileType txt = new FileType(".txt", "Text File");
-            FileType pad = new FileType(".pad", "PAD File");
-            FileType doc = new FileType(".doc", "Word Document");
-            FileType docx = new FileType(".docx", "Word Document");
-            FileType xls = new FileType(".xls", "Excel Spreadsheet");
-            FileType xlsx = new FileType(".xlsx", "Excel Spreadsheet");
-            FileType csv = new FileType(".csv", "CSV File");
-            FileType xml = new FileType(".xml", "XML File");
-            FileType json = new FileType(".json", "JSON File");
-
-            fileTypeRepository.saveAll(Arrays.asList(pdf, txt, pad, doc, docx, xls, xlsx, csv, xml, json));
+            fileTypeRepository.saveAll(List.of(
+                new FileType(".pdf", "PDF Document"),
+                new FileType(".txt", "Text File"),
+                new FileType(".pad", "PAD File"),
+                new FileType(".doc", "Word Document"),
+                new FileType(".docx", "Word Document"),
+                new FileType(".xls", "Excel Spreadsheet"),
+                new FileType(".xlsx", "Excel Spreadsheet"),
+                new FileType(".csv", "CSV File"),
+                new FileType(".xml", "XML File"),
+                new FileType(".json", "JSON File")
+            ));
         }
     }
 }

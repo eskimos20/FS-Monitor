@@ -1,5 +1,6 @@
 package com.fsmonitor.app.config;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.TaskScheduler;
@@ -27,11 +28,9 @@ public class SchedulingConfig implements AsyncConfigurer {
         scheduler.setPoolSize(SCHEDULER_POOL_SIZE);
         scheduler.setThreadNamePrefix("fsmonitor-");
         scheduler.setRemoveOnCancelPolicy(true);
-        scheduler.setErrorHandler(t -> {
-            // ErrorHandler is optional; Spring logs by default, this is just a hook.
-            System.err.println("Scheduled task error: " + t.getMessage());
-            t.printStackTrace();
-        });
+        scheduler.setErrorHandler(t ->
+            LoggerFactory.getLogger("fsmonitor.scheduler")
+                .error("Scheduled task error: {}", t.getMessage(), t));
         scheduler.initialize();
         return scheduler;
     }
@@ -43,6 +42,19 @@ public class SchedulingConfig implements AsyncConfigurer {
         executor.setMaxPoolSize(MAIL_EXECUTOR_MAX_SIZE);
         executor.setQueueCapacity(MAIL_QUEUE_CAPACITY);
         executor.setThreadNamePrefix("mail-");
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
+    /** Dedicated executor for controller-triggered scans so HTTP requests return fast. */
+    @Bean(name = "monitorTaskExecutor")
+    public ThreadPoolTaskExecutor monitorTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("monitor-");
         executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
         executor.initialize();
         return executor;

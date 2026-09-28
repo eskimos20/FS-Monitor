@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X } from 'lucide-react';
+import { Pencil, Save, X } from 'lucide-react';
+import FormField from '../ui/FormField';
+import Toggle from '../ui/Toggle';
+import DetailItem from '../ui/DetailItem';
 
 const MailConfigSettings = ({ mailConfig, onSave }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -22,13 +25,13 @@ const MailConfigSettings = ({ mailConfig, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const dataToSave = {
       ...formData,
       username: useAuthentication ? formData.username : '',
       password: useAuthentication ? formData.password : ''
     };
-    
+
     await onSave(dataToSave);
     setIsEditing(false);
   };
@@ -41,150 +44,112 @@ const MailConfigSettings = ({ mailConfig, onSave }) => {
     setIsEditing(false);
   };
 
+  const update = (key, value) => setFormData({ ...formData, [key]: value });
+
   if (!isEditing && mailConfig) {
     return (
       <div className="space-y-4">
         <div className="flex justify-end">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="btn-secondary flex items-center"
-          >
-            <Edit className="h-4 w-4 mr-2" />
+          <button onClick={() => setIsEditing(true)} className="btn-secondary">
+            <Pencil className="h-4 w-4 mr-1.5" />
             Edit Configuration
           </button>
         </div>
 
-        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500">SMTP Host</p>
-              <p className="text-sm text-gray-900">{mailConfig.host}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Port</p>
-              <p className="text-sm text-gray-900">{mailConfig.port}</p>
-            </div>
+        <div className="bg-surface-50/70 border border-surface-200 rounded-xl p-5">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <DetailItem label="SMTP Host">
+              <span className="font-mono text-xs">{mailConfig.host}</span>
+            </DetailItem>
+            <DetailItem label="Port">
+              <span className="tnum">{mailConfig.port}</span>
+            </DetailItem>
+            <DetailItem label="From Email">{mailConfig.fromEmail}</DetailItem>
+            <DetailItem label="To Email">{mailConfig.toEmail}</DetailItem>
+            {mailConfig.username && (
+              <DetailItem label="Authentication">
+                Enabled ({mailConfig.username})
+              </DetailItem>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500">From Email</p>
-              <p className="text-sm text-gray-900">{mailConfig.fromEmail}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">To Email</p>
-              <p className="text-sm text-gray-900">{mailConfig.toEmail}</p>
-            </div>
-          </div>
-          {mailConfig.username && (
-            <div>
-              <p className="text-sm font-medium text-gray-500">Authentication</p>
-              <p className="text-sm text-gray-900">Enabled ({mailConfig.username})</p>
-            </div>
-          )}
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
-          <input
-            type="text"
-            value={formData.host}
-            onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-            className="input-field"
-            placeholder="smtp.gmail.com"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Port</label>
-          <input
-            type="number"
-            value={formData.port}
-            onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) })}
-            className="input-field"
-            required
-          />
-        </div>
+        <FormField
+          label="SMTP Host"
+          value={formData.host}
+          onChange={(e) => update('host', e.target.value)}
+          placeholder="smtp.gmail.com"
+          required
+        />
+        <FormField
+          label="Port"
+          type="number"
+          value={formData.port}
+          onChange={(e) => update('port', parseInt(e.target.value))}
+          required
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">From Email (Sender)</label>
-          <input
-            type="email"
-            value={formData.fromEmail}
-            onChange={(e) => setFormData({ ...formData, fromEmail: e.target.value })}
-            className="input-field"
-            placeholder="noreply@company.com"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">To Email (Recipient)</label>
-          <input
-            type="email"
-            value={formData.toEmail}
-            onChange={(e) => setFormData({ ...formData, toEmail: e.target.value })}
-            className="input-field"
-            placeholder="admin@company.com"
-            required
-          />
-        </div>
+        <FormField
+          label="From Email (Sender)"
+          type="email"
+          value={formData.fromEmail}
+          onChange={(e) => update('fromEmail', e.target.value)}
+          placeholder="noreply@company.com"
+          required
+        />
+        <FormField
+          label="To Email (Recipient)"
+          type="email"
+          value={formData.toEmail}
+          onChange={(e) => update('toEmail', e.target.value)}
+          placeholder="admin@company.com"
+          required
+        />
       </div>
 
-      <div className="pt-2 border-t">
-        <label className="flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useAuthentication}
-            onChange={(e) => setUseAuthentication(e.target.checked)}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
-          />
-          <span className="ml-2 text-sm font-medium text-gray-700">
-            Use SMTP Authentication (username & password)
-          </span>
-        </label>
+      <div className="pt-4 border-t border-surface-200">
+        <Toggle
+          checked={useAuthentication}
+          onChange={setUseAuthentication}
+          label="Use SMTP Authentication"
+        />
       </div>
 
       {useAuthentication && (
-        <div className="grid grid-cols-2 gap-4 pt-2">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-            <input
-              type="text"
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              className="input-field"
-              placeholder="your-email@gmail.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              className="input-field"
-              placeholder="Your app password"
-            />
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            label="Username"
+            value={formData.username}
+            onChange={(e) => update('username', e.target.value)}
+            placeholder="your-email@gmail.com"
+          />
+          <FormField
+            label="Password"
+            type="password"
+            value={formData.password}
+            onChange={(e) => update('password', e.target.value)}
+            placeholder="Your app password"
+          />
         </div>
       )}
 
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-end gap-2 pt-4 border-t border-surface-200">
         {mailConfig && (
-          <button type="button" onClick={handleCancel} className="btn-secondary flex items-center">
-            <X className="h-4 w-4 mr-2" />
+          <button type="button" onClick={handleCancel} className="btn-secondary">
+            <X className="h-4 w-4 mr-1.5" />
             Cancel
           </button>
         )}
-        <button type="submit" className="btn-primary flex items-center">
-          <Save className="h-4 w-4 mr-2" />
+        <button type="submit" className="btn-primary">
+          <Save className="h-4 w-4 mr-1.5" />
           Save Configuration
         </button>
       </div>

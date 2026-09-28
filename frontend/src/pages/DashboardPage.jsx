@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Cpu, FolderOpen, Server, FileSearch, HardDrive, Trash } from 'lucide-react';
+import { Cpu, FolderOpen, Server, FileSearch, HardDrive, Trash2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { useServices } from '../hooks/useServices';
 import { useSystemStats } from '../hooks/useSystemStats';
@@ -8,6 +9,7 @@ import { useLogConfigs } from '../hooks/useLogConfigs';
 import { useDeleteServices } from '../hooks/useDeleteServices';
 import { useAppSettings } from '../hooks/useAppSettings';
 import TabButton from '../components/TabButton';
+import PageHeader from '../components/ui/PageHeader';
 import SystemTab from '../components/dashboard/SystemTab';
 import FileIntegrationsTab from '../components/dashboard/FileIntegrationsTab';
 import ServiceIntegrationsTab from '../components/dashboard/ServiceIntegrationsTab';
@@ -15,9 +17,19 @@ import LogControlTab from '../components/dashboard/LogControlTab';
 import StorageTable from '../components/dashboard/StorageTable';
 import DeleteServiceTab from '../components/dashboard/DeleteServiceTab';
 
+const TABS = [
+  { id: 'system', icon: Cpu, label: 'System' },
+  { id: 'files', icon: FolderOpen, label: 'File Integrations' },
+  { id: 'services', icon: Server, label: 'Services' },
+  { id: 'storage', icon: HardDrive, label: 'Storage' },
+  { id: 'delete', icon: Trash2, label: 'Delete Service' },
+  { id: 'logs', icon: FileSearch, label: 'Log Control' },
+];
+
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('system');
-  
+  const { user } = useAuth();
+
   const { refreshIntervalMs } = useAppSettings();
   const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(60000);
   const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(60000);
@@ -27,58 +39,29 @@ const DashboardPage = () => {
   const { deleteServices, loading: deleteServicesLoading, error: deleteServicesError, toggleDeleteService } = useDeleteServices(60000);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Monitor your file integrations and system resources</p>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Dashboard"
+        subtitle={`Welcome${user?.username ? `, ${user.username}` : ''}`}
+      />
 
-      {/* Tabs Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <TabButton
-            active={activeTab === 'system'}
-            onClick={() => setActiveTab('system')}
-            icon={Cpu}
-            label="CPU & Memory"
-          />
-          <TabButton
-            active={activeTab === 'files'}
-            onClick={() => setActiveTab('files')}
-            icon={FolderOpen}
-            label="File Integrations"
-          />
-          <TabButton
-            active={activeTab === 'services'}
-            onClick={() => setActiveTab('services')}
-            icon={Server}
-            label="Service Integrations"
-          />
-          <TabButton
-            active={activeTab === 'storage'}
-            onClick={() => setActiveTab('storage')}
-            icon={HardDrive}
-            label="Storage"
-          />
-          <TabButton
-            active={activeTab === 'delete'}
-            onClick={() => setActiveTab('delete')}
-            icon={Trash}
-            label="Delete Service"
-          />
-          <TabButton
-            active={activeTab === 'logs'}
-            onClick={() => setActiveTab('logs')}
-            icon={FileSearch}
-            label="Log Control"
-          />
+      {/* Tabs */}
+      <div className="border-b border-surface-200">
+        <nav className="-mb-px flex gap-6 overflow-x-auto scroll-slim">
+          {TABS.map((tab) => (
+            <TabButton
+              key={tab.id}
+              active={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              icon={tab.icon}
+              label={tab.label}
+            />
+          ))}
         </nav>
       </div>
 
-      {/* Tab Content */}
       {activeTab === 'system' && <SystemTab systemStats={systemStats} />}
-      
+
       {activeTab === 'files' && (
         <FileIntegrationsTab
           integrations={integrations}
@@ -89,7 +72,7 @@ const DashboardPage = () => {
           onToggle={toggleIntegration}
         />
       )}
-      
+
       {activeTab === 'services' && (
         <ServiceIntegrationsTab
           services={services}
@@ -98,9 +81,9 @@ const DashboardPage = () => {
           onToggle={toggleService}
         />
       )}
-      
+
       {activeTab === 'storage' && <StorageTable />}
-      
+
       {activeTab === 'delete' && (
         <DeleteServiceTab
           deleteServices={deleteServices}
@@ -109,12 +92,8 @@ const DashboardPage = () => {
           onToggle={toggleDeleteService}
         />
       )}
-      
-      {activeTab === 'logs' && (
-        <LogControlTab
-          logConfigs={logConfigs}
-        />
-      )}
+
+      {activeTab === 'logs' && <LogControlTab logConfigs={logConfigs} />}
     </div>
   );
 };

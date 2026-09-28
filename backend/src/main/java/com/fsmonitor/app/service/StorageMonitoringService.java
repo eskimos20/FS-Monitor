@@ -2,91 +2,120 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.cache.StorageCacheService;
 import com.fsmonitor.app.cache.StorageCacheService.StorageCache;
-import com.fsmonitor.app.cache.MonitoringCacheManager.StorageInfoData;
-import com.fsmonitor.app.cache.MonitoringCacheManager.LargestFileData;
-import com.fsmonitor.app.cache.MonitoringCacheManager.DiskSpaceData;
+import com.fsmonitor.app.cache.model.DiskSpaceData;
+import com.fsmonitor.app.cache.model.LargestFileData;
+import com.fsmonitor.app.cache.model.StorageInfoData;
 import com.fsmonitor.app.entity.StorageConfig;
 import com.fsmonitor.app.repository.StorageConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import jakarta.annotation.PostConstruct;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.*;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.PriorityQueue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * Periodically scans configured storage paths and collects disk usage data.
+ * All filesystem traversal uses java.nio - no external processes, no shell
+ * escaping and no risk of hung subprocesses.
+ */
 @Service
 public class StorageMonitoringService {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(StorageMonitoringService.class);
     private static final int TOP_FILES_LIMIT = 20;
     private static final int TOP_DIRECTORIES_LIMIT = 20;
-    
-    @Autowired
-    private StorageConfigRepository storageConfigRepository;
-    
-    @Autowired
-    private StorageCacheService storageCacheService;
-    
+
+    /** Pseudo/virtual filesystems that are never real storage. */
+    private static final Set<String> PSEUDO_FS_TYPES = Set.of(
+            "tmpfs", "devtmpfs", "efivarfs", "proc", "sysfs", "devpts",
+            "cgroup", "cgroup2", "pstore", "securityfs", "debugfs", "tracefs",
+            "configfs", "fusectl", "mqueue", "hugetlbfs", "rpc_pipefs",
+            "binfmt_misc", "autofs", "bpf", "nsfs", "overlay", "squashfs", "selinuxfs");
+
+    /** Remote filesystems - excluded like "df -l" does; statvfs on a stale
+     *  NFS mount can also block for a long time. */
+    private static final Set<String> REMOTE_FS_TYPES = Set.of(
+            "nfs", "nfs4", "cifs", "smbfs", "ceph", "glusterfs", "9p", "davfs");
+
+    private final StorageConfigRepository storageConfigRepository;
+    private final StorageCacheService storageCacheService;
+    private final Executor monitorExecutor;
     private final Map<Long, Long> lastCheckTimes = new ConcurrentHashMap<>();
-    
-    @PostConstruct
-    public void initializeStorageMonitoring() {
-        // Note: Don't scan immediately to avoid double scanning with @Scheduled
-        // Let @Scheduled handle the first scan after initialDelay
+
+    public StorageMonitoringService(StorageConfigRepository storageConfigRepository,
+                                    StorageCacheService storageCacheService,
+                                    @org.springframework.beans.factory.annotation.Qualifier("monitorTaskExecutor")
+                                    Executor monitorExecutor) {
+        this.storageConfigRepository = storageConfigRepository;
+        this.storageCacheService = storageCacheService;
+        this.monitorExecutor = monitorExecutor;
     }
-    
+
     private long calculateIntervalMillis(StorageConfig config) {
-        int interval = config.getCheckIntervalMinutes();
-        String unit = config.getIntervalUnit();
-        
-        switch (unit) {
-            case "HOURS":
-                return interval * 60L * 60 * 1000;
-            case "DAYS":
-                return interval * 24L * 60 * 60 * 1000;
-            case "MONTHS":
-                return interval * 30L * 24 * 60 * 60 * 1000;
-            case "MINUTES":
-            default:
-                return interval * 60L * 1000;
-        }
+        Integer configured = config.getCheckIntervalMinutes();
+        int interval = configured != null ? configured : 5;
+        return switch (config.getIntervalUnit()) {
+            case "HOURS" -> interval * 60L * 60 * 1000;
+            case "DAYS" -> interval * 24L * 60 * 60 * 1000;
+            case "MONTHS" -> interval * 30L * 24 * 60 * 60 * 1000;
+            default -> interval * 60L * 1000; // MINUTES
+        };
     }
-    
-    @Scheduled(fixedDelay = 60000, initialDelay = 60000) // Check every minute, wait 1 min after startup
+
+    @Scheduled(fixedDelay = 60000, initialDelay = 60000)
     public void monitorStorage() {
         List<StorageConfig> activeConfigs = storageConfigRepository.findByActiveTrue();
         long currentTime = System.currentTimeMillis();
-        
-        // Always scan system-wide storage first
+
+        // Always refresh system-wide storage (mount point usage)
         scanSystemStorage();
-        
+
+        // Drop cache and timer entries for configs that no longer exist
+        Set<Long> activeIds = activeConfigs.stream()
+                .map(StorageConfig::getId)
+                .collect(Collectors.toSet());
+        activeIds.add(-1L); // keep the virtual system cache
+        storageCacheService.cleanupDeletedConfigs(activeIds);
+        lastCheckTimes.keySet().retainAll(activeIds);
+
         for (StorageConfig config : activeConfigs) {
             Long lastCheck = lastCheckTimes.get(config.getId());
-            
-            // Initialize lastCheck for new configs and scan immediately
+
             if (lastCheck == null) {
+                // New config - scan immediately, record time even on failure
                 try {
                     scanStorage(config);
-                    lastCheckTimes.put(config.getId(), currentTime);
                 } catch (Exception e) {
                     logger.error("Error in initial scan for config {}: {}", config.getName(), e.getMessage());
-                    lastCheckTimes.put(config.getId(), currentTime); // Still set time to avoid retry loops
                 }
+                lastCheckTimes.put(config.getId(), currentTime);
                 continue;
             }
-            
-            long intervalMillis = calculateIntervalMillis(config);
-            
-            if ((currentTime - lastCheck) >= intervalMillis) {
+
+            if ((currentTime - lastCheck) >= calculateIntervalMillis(config)) {
                 try {
                     scanStorage(config);
                     lastCheckTimes.put(config.getId(), currentTime);
@@ -96,551 +125,320 @@ public class StorageMonitoringService {
             }
         }
     }
-    
+
     private void scanSystemStorage() {
         long startTime = System.currentTimeMillis();
         try {
-            // Create a virtual system config
-            StorageConfig systemConfig = new StorageConfig();
-            systemConfig.setId(-1L);
-            systemConfig.setName("System Storage");
-            systemConfig.setPath("/");
-            systemConfig.setActive(true);
-            
             StorageCache cache = storageCacheService.getCache(-1L);
-            
-            // Get disk space using df command
-            List<StorageInfoData> storageInfoList = getDiskSpaceInfo();
-            cache.setStorageInfoList(storageInfoList);
-            
-            // Get system disk space data
-            DiskSpaceData diskSpace = getSystemDiskSpace();
+
+            List<StorageInfoData> mounts = getMountPointInfo();
+            cache.setStorageInfoList(mounts);
+
+            DiskSpaceData diskSpace = new DiskSpaceData();
+            diskSpace.setTotalBytes(mounts.stream()
+                    .mapToLong(m -> m.getTotalSizeBytes() != null ? m.getTotalSizeBytes() : 0).sum());
+            diskSpace.setUsableBytes(mounts.stream()
+                    .mapToLong(m -> m.getFreeSpaceBytes() != null ? m.getFreeSpaceBytes() : 0).sum());
+            diskSpace.setScannedAt(LocalDateTime.now());
             cache.setDiskSpace(diskSpace);
-            
-            // Clear largest files for system-wide (not relevant)
+
             cache.setLargestFiles(new ArrayList<>());
-            
         } catch (Exception e) {
             logger.error("Error scanning system-wide storage: {}", e.getMessage());
         }
-        
-        long endTime = System.currentTimeMillis();
-        logger.info("File System Storage scan completed - Duration: {}ms", (endTime - startTime));
+
+        logger.info("File System Storage scan completed - Duration: {}ms",
+                System.currentTimeMillis() - startTime);
     }
-    
-    private List<StorageInfoData> getDiskSpaceInfo() {
+
+    /**
+     * Enumerate local filesystems via the NIO FileStore API (replaces parsing
+     * of "df -l" output). Bind mounts and subvolume mounts of the same
+     * filesystem are reported once - deduplicated by store name and by
+     * identical space statistics.
+     */
+    private List<StorageInfoData> getMountPointInfo() {
         List<StorageInfoData> result = new ArrayList<>();
-        try {
-            // Use df -h with built-in exclusion flags for local filesystems only
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "df -h -l -x tmpfs -x devtmpfs -x efivarfs");
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                boolean firstLine = true; // Skip header
-                while ((line = reader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    
-                    // Skip total line
-                    if (line.trim().startsWith("total")) {
-                        continue;
-                    }
-                    
-                    String[] parts = line.trim().split("\\s+");
-                    if (parts.length >= 6) {
-                        String mountPath = parts[5]; // Mounted on path
-                        
-                                                
-                        StorageInfoData info = new StorageInfoData();
-                        info.setPath(mountPath);
-                        info.setFileCount(0); // Not available from df
-                        info.setDirectoryCount(1); // It's a mount point
-                        info.setTotalSizeBytes(parseSize(parts[1])); // Size
-                        info.setScannedAt(LocalDateTime.now());
-                        result.add(info);
-                    }
+        Set<String> seenStoreNames = new HashSet<>();
+        Set<List<Long>> seenStoreStats = new HashSet<>();
+
+        for (FileStore store : FileSystems.getDefault().getFileStores()) {
+            try {
+                String type = store.type();
+                if (type == null || PSEUDO_FS_TYPES.contains(type.toLowerCase())
+                        || REMOTE_FS_TYPES.contains(type.toLowerCase())
+                        || type.toLowerCase().startsWith("fuse")) {
+                    continue;
                 }
+
+                long total = store.getTotalSpace();
+                long usable = store.getUsableSpace();
+                if (total <= 0) {
+                    continue;
+                }
+
+                // Same underlying filesystem mounted at multiple paths
+                // (bind mounts, btrfs subvolumes) - report it once
+                if (!seenStoreNames.add(store.name())
+                        || !seenStoreStats.add(List.of(total, usable, store.getUnallocatedSpace()))) {
+                    continue;
+                }
+
+                // FileStore.toString() renders as "/path (type)"
+                String mountPath = store.toString();
+                int sep = mountPath.indexOf(" (");
+                if (sep >= 0) {
+                    mountPath = mountPath.substring(0, sep);
+                }
+                if (!Files.exists(Paths.get(mountPath))) {
+                    continue;
+                }
+
+                StorageInfoData info = new StorageInfoData();
+                info.setPath(mountPath);
+                info.setTotalSizeBytes(total);
+                info.setFreeSpaceBytes(usable);
+                info.setDirectoryCount(1);
+                info.setScannedAt(LocalDateTime.now());
+                result.add(info);
+            } catch (IOException e) {
+                logger.debug("Skipping file store {}: {}", store, e.getMessage());
             }
-            
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                logger.warn("df command exited with code: {}", exitCode);
-            }
-            
-        } catch (Exception e) {
-            logger.error("Error executing df command: {}", e.getMessage());
         }
         return result;
     }
-    
-    private DiskSpaceData getSystemDiskSpace() {
-        DiskSpaceData diskSpace = new DiskSpaceData();
-        try {
-            // Get total disk space using --total flag
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", "df -h -l -x tmpfs -x devtmpfs -x efivarfs --total");
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                boolean firstLine = true;
-                while ((line = reader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue;
-                    }
-                    
-                    // Look for the total line
-                    if (line.trim().startsWith("total")) {
-                        String[] parts = line.trim().split("\\s+");
-                        if (parts.length >= 4) {
-                            // parts[1] = Size, parts[2] = Used, parts[3] = Avail
-                            diskSpace.setTotalBytes(parseSize(parts[1]));
-                            diskSpace.setUsableBytes(parseSize(parts[3])); // Available space
-                            diskSpace.setScannedAt(LocalDateTime.now());
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            process.waitFor();
-            
-        } catch (Exception e) {
-            logger.error("Error getting system disk space: {}", e.getMessage());
-            // Set default values
-            diskSpace.setTotalBytes(0L);
-            diskSpace.setUsableBytes(0L);
-            diskSpace.setScannedAt(LocalDateTime.now());
-        }
-        return diskSpace;
+
+    // ---- CRUD (used by StorageConfigController) ----
+
+    public List<StorageConfig> findAll() {
+        return storageConfigRepository.findAll();
     }
-    
-    private long parseSize(String sizeStr) {
-        try {
-            // Parse sizes like "10G", "500M", "1.5T", "2P", "5E"
-            sizeStr = sizeStr.toUpperCase();
-            if (sizeStr.endsWith("K")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024);
-            } else if (sizeStr.endsWith("M")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024 * 1024);
-            } else if (sizeStr.endsWith("G")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024 * 1024 * 1024);
-            } else if (sizeStr.endsWith("T")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024L * 1024 * 1024 * 1024);
-            } else if (sizeStr.endsWith("P")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024L * 1024 * 1024 * 1024 * 1024);
-            } else if (sizeStr.endsWith("E")) {
-                return (long) (Double.parseDouble(sizeStr.substring(0, sizeStr.length() - 1)) * 1024L * 1024 * 1024 * 1024 * 1024 * 1024);
-            } else {
-                // Assume bytes
-                return Long.parseLong(sizeStr);
-            }
-        } catch (Exception e) {
-            logger.debug("Error parsing size '{}': {}", sizeStr, e.getMessage());
-            return 0L;
-        }
+
+    public Optional<StorageConfig> findById(Long id) {
+        return storageConfigRepository.findById(id);
     }
-    
+
+    /** Saves the config and kicks off an asynchronous initial scan. */
+    public StorageConfig create(StorageConfig config) {
+        StorageConfig saved = storageConfigRepository.save(config);
+        scanStorageAsync(saved);
+        return saved;
+    }
+
+    public Optional<StorageConfig> update(Long id, StorageConfig incoming) {
+        return storageConfigRepository.findById(id).map(existing -> {
+            existing.setName(incoming.getName());
+            existing.setPath(incoming.getPath());
+            existing.setRecursive(incoming.getRecursive());
+            existing.setCheckIntervalMinutes(incoming.getCheckIntervalMinutes());
+            existing.setIntervalUnit(incoming.getIntervalUnit());
+            existing.setActive(incoming.getActive());
+            StorageConfig updated = storageConfigRepository.save(existing);
+            scanStorageAsync(updated); // async rescan with the new settings
+            return updated;
+        });
+    }
+
+    public boolean delete(Long id) {
+        return storageConfigRepository.findById(id).map(config -> {
+            storageConfigRepository.delete(config);
+            lastCheckTimes.remove(id);
+            return true;
+        }).orElse(false);
+    }
+
+    /** Submit a scan on the monitor executor - returns immediately. */
+    public void scanStorageAsync(StorageConfig config) {
+        monitorExecutor.execute(() -> {
+            try {
+                scanStorage(config);
+            } catch (Exception e) {
+                logger.error("Async storage scan failed for {}: {}", config.getName(), e.getMessage());
+            }
+        });
+    }
+
     public void scanStorage(StorageConfig config) {
         long startTime = System.currentTimeMillis();
         try {
             Path rootPath = Paths.get(config.getPath());
-            
+
             if (!Files.exists(rootPath)) {
                 logger.warn("Path does not exist: {}", config.getPath());
                 return;
             }
-            
+            if (!Files.isDirectory(rootPath)) {
+                logger.warn("Configured path is not a directory: {}", config.getPath());
+                return;
+            }
+
             StorageCache cache = storageCacheService.getCache(config.getId());
-            
-            // Scan directories
-            Map<String, DirectoryStats> directoryStatsMap = new HashMap<>();
-            List<FileInfo> allFiles = new ArrayList<>();
-            
-            if (config.getRecursive()) {
-                scanRecursive(rootPath, config, directoryStatsMap, allFiles);
-            } else {
-                scanSingleDirectory(rootPath, config, directoryStatsMap, allFiles);
-            }
-            
-            // Save top largest directories by size
-            List<Map.Entry<String, DirectoryStats>> topDirectories = directoryStatsMap.entrySet().stream()
-                .sorted((e1, e2) -> Long.compare(e2.getValue().totalSize, e1.getValue().totalSize))
-                .limit(TOP_DIRECTORIES_LIMIT)
-                .collect(Collectors.toList());
-            
-            List<StorageInfoData> storageInfoList = new ArrayList<>();
-            for (Map.Entry<String, DirectoryStats> entry : topDirectories) {
-                StorageInfoData info = new StorageInfoData();
-                info.setPath(entry.getKey());
-                info.setTotalSizeBytes(entry.getValue().totalSize);
-                info.setFileCount(entry.getValue().fileCount);
-                info.setDirectoryCount(entry.getValue().directoryCount);
-                info.setScannedAt(LocalDateTime.now());
-                storageInfoList.add(info);
-            }
+
+            ScanResult scan = scanPath(rootPath, Boolean.TRUE.equals(config.getRecursive()));
+
+            // Top directories by cumulative size
+            List<StorageInfoData> storageInfoList = scan.directoryStats.entrySet().stream()
+                    .sorted((e1, e2) -> Long.compare(e2.getValue().totalSize, e1.getValue().totalSize))
+                    .limit(TOP_DIRECTORIES_LIMIT)
+                    .map(entry -> {
+                        StorageInfoData info = new StorageInfoData();
+                        info.setPath(entry.getKey());
+                        info.setTotalSizeBytes(entry.getValue().totalSize);
+                        info.setFileCount(entry.getValue().fileCount);
+                        info.setDirectoryCount(entry.getValue().directoryCount);
+                        info.setScannedAt(LocalDateTime.now());
+                        return info;
+                    })
+                    .collect(Collectors.toList());
             cache.setStorageInfoList(storageInfoList);
-            
-            // Save top largest files
-            List<FileInfo> topFiles = allFiles.stream()
-                .sorted(Comparator.comparingLong(f -> -f.size))
-                .limit(TOP_FILES_LIMIT)
-                .collect(Collectors.toList());
-            
-            List<LargestFileData> largestFilesList = new ArrayList<>();
-            for (FileInfo fileInfo : topFiles) {
-                LargestFileData largestFile = new LargestFileData();
-                largestFile.setFilePath(fileInfo.path);
-                largestFile.setSizeBytes(fileInfo.size);
-                largestFile.setScannedAt(LocalDateTime.now());
-                largestFilesList.add(largestFile);
-            }
+
+            // Top largest files (bounded heap - we never keep the full file list)
+            List<LargestFileData> largestFilesList = scan.largestFiles.stream()
+                    .sorted(Comparator.comparingLong(f -> -f.size))
+                    .map(f -> {
+                        LargestFileData data = new LargestFileData();
+                        data.setFilePath(f.path);
+                        data.setSizeBytes(f.size);
+                        data.setScannedAt(LocalDateTime.now());
+                        return data;
+                    })
+                    .collect(Collectors.toList());
             cache.setLargestFiles(largestFilesList);
-            
-            // Calculate total size of the directory
-            long totalSize = directoryStatsMap.values().stream()
-                .mapToLong(stats -> stats.totalSize)
-                .sum();
-            
-            // Save disk space information to cache
+
             DiskSpaceData diskSpace = new DiskSpaceData();
-            diskSpace.setTotalBytes(totalSize);
+            diskSpace.setTotalBytes(scan.rootStats.totalSize);
             diskSpace.setUsableBytes(0L);
             diskSpace.setScannedAt(LocalDateTime.now());
             cache.setDiskSpace(diskSpace);
-            
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-            logger.info("Manual Storage scan completed - Config: {} - Duration: {}ms", 
-                config.getName(), duration);
-            
+
+            logger.info("Storage scan completed - Config: {} - Files: {} - Duration: {}ms",
+                    config.getName(), scan.rootStats.fileCount, System.currentTimeMillis() - startTime);
+
         } catch (Exception e) {
             logger.error("Error scanning storage for config {}: {}", config.getName(), e.getMessage());
         }
     }
-    
-    private void scanRecursive(Path rootPath, StorageConfig config, 
-                               Map<String, DirectoryStats> directoryStatsMap, 
-                               List<FileInfo> allFiles) throws IOException {
-        try {
-            String path = rootPath.toString();
-            
-            // Get directory statistics using du command
-            getDirectoryStats(path, config, directoryStatsMap);
-            
-            // Get file information using find command
-            getFileInfo(path, config, allFiles);
-            
-        } catch (Exception e) {
-            logger.warn("Error scanning storage with Linux commands: {}", e.getMessage());
-            throw new IOException("Failed to scan storage", e);
+
+    /**
+     * Walk the directory tree once, accumulating cumulative per-directory
+     * sizes, file counts, directory counts and the list of all files.
+     * Hidden entries and symlinks are skipped, matching the behaviour of the
+     * previous shell-based implementation (find with hidden-file exclusion).
+     */
+    private ScanResult scanPath(Path rootPath, boolean recursive) throws IOException {
+        ScanResult scan = new ScanResult();
+        scan.directoryStats.put(rootPath.toString(), scan.rootStats);
+
+        if (!recursive) {
+            try (var stream = Files.list(rootPath)) {
+                stream.forEach(child -> accumulateChild(rootPath, child, scan));
+            }
+            return scan;
         }
+
+        Files.walkFileTree(rootPath, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                if (!dir.equals(rootPath)) {
+                    if (isHidden(dir)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    scan.directoryStats.put(dir.toString(), new DirectoryStats());
+                    accumulateOnAncestors(scan, rootPath, dir, s -> s.directoryCount++);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (attrs.isRegularFile() && !attrs.isSymbolicLink() && !isHidden(file)) {
+                    long size = attrs.size();
+                    accumulateOnAncestors(scan, rootPath, file, s -> {
+                        s.totalSize += size;
+                        s.fileCount++;
+                    });
+                    offerLargest(scan, file.toString(), size);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                logger.debug("Cannot access {}: {}", file, exc.getMessage());
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return scan;
     }
-    
-    private void getDirectoryStats(String path, StorageConfig config, 
-                                   Map<String, DirectoryStats> directoryStatsMap) {
+
+    private void accumulateChild(Path rootPath, Path child, ScanResult scan) {
         try {
-            // Check if this is individual storage (not system-wide with id -1)
-            boolean isIndividualStorage = config.getId() == null || !config.getId().equals(-1L);
-            
-            if (isIndividualStorage) {
-                // For individual storage, get total stats for the entire path once
-                DirectoryStats totalStats = new DirectoryStats();
-                
-                // Get total size using du
-                try {
-                    String sizeCommand = String.format("du -sb '%s' 2>/dev/null", path.replace("'", "'\"'\"'"));
-                    ProcessBuilder sizePb = new ProcessBuilder("bash", "-c", sizeCommand);
-                    sizePb.redirectErrorStream(true);
-                    Process sizeProcess = sizePb.start();
-                    
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(sizeProcess.getInputStream()))) {
-                        String line = reader.readLine();
-                        if (line != null && !line.trim().isEmpty()) {
-                            String[] parts = line.trim().split("\\s+");
-                            if (parts.length >= 1) {
-                                try {
-                                    totalStats.totalSize = Long.parseLong(parts[0]);
-                                } catch (NumberFormatException e) {
-                                    logger.debug("Error parsing total size for {}: {}", path, line);
-                                }
-                            }
-                        }
-                    }
-                    sizeProcess.waitFor();
-                } catch (Exception e) {
-                    logger.debug("Error getting total size for {}: {}", path, e.getMessage());
-                }
-                
-                // Get total file count
-                try {
-                    String fileCountCommand = String.format("find '%s' -type f ! -path '*/.*' 2>/dev/null | wc -l", 
-                        path.replace("'", "'\"'\"'"));
-                    ProcessBuilder fileCountPb = new ProcessBuilder("bash", "-c", fileCountCommand);
-                    fileCountPb.redirectErrorStream(true);
-                    Process fileCountProcess = fileCountPb.start();
-                    
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(fileCountProcess.getInputStream()))) {
-                        String output = reader.readLine();
-                        if (output != null && !output.trim().isEmpty()) {
-                            try {
-                                totalStats.fileCount = Integer.parseInt(output.trim());
-                            } catch (NumberFormatException e) {
-                                logger.debug("Error parsing total file count for {}: {}", path, output);
-                            }
-                        }
-                    }
-                    fileCountProcess.waitFor();
-                } catch (Exception e) {
-                    logger.debug("Error getting total file count for {}: {}", path, e.getMessage());
-                }
-                
-                // Get directory count
-                try {
-                    String dirCountCommand = String.format("find '%s' -type d ! -path '*/.*' 2>/dev/null | wc -l", 
-                        path.replace("'", "'\"'\"'"));
-                    ProcessBuilder dirCountPb = new ProcessBuilder("bash", "-c", dirCountCommand);
-                    dirCountPb.redirectErrorStream(true);
-                    Process dirCountProcess = dirCountPb.start();
-                    
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(dirCountProcess.getInputStream()))) {
-                        String output = reader.readLine();
-                        if (output != null && !output.trim().isEmpty()) {
-                            try {
-                                totalStats.directoryCount = Integer.parseInt(output.trim());
-                            } catch (NumberFormatException e) {
-                                logger.debug("Error parsing directory count for {}: {}", path, output);
-                            }
-                        }
-                    }
-                    dirCountProcess.waitFor();
-                } catch (Exception e) {
-                    logger.debug("Error getting directory count for {}: {}", path, e.getMessage());
-                }
-                
-                // Store total stats for the main path
-                directoryStatsMap.put(path, totalStats);
-                
+            if (Files.isSymbolicLink(child) || isHidden(child)) {
+                return;
+            }
+            if (Files.isDirectory(child)) {
+                scan.rootStats.directoryCount++;
             } else {
-                // System-wide scanning (original behavior)
-                // Use du to get directory sizes
-                String command = String.format("find '%s' -type d ! -path '*/.*' 2>/dev/null | head -n %d | xargs -I {} du -sb {} 2>/dev/null", 
-                    path.replace("'", "'\"'\"'"), TOP_DIRECTORIES_LIMIT);
-                
-                ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-                
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        String[] parts = line.trim().split("\\s+");
-                        if (parts.length >= 2) {
-                            try {
-                                long size = Long.parseLong(parts[0]);
-                                String dirPath = parts[1];
-                                
-                                // Skip system directories for system-wide scanning
-                                if (dirPath.startsWith("/proc/") || 
-                                    dirPath.startsWith("/sys/") || 
-                                    dirPath.startsWith("/dev/") ||
-                                    dirPath.startsWith("/run/") ||
-                                    dirPath.startsWith("/snap/") ||
-                                    dirPath.startsWith("/var/lib/") ||
-                                    dirPath.startsWith("/var/cache/") ||
-                                    dirPath.startsWith("/var/log/") ||
-                                    dirPath.startsWith("/tmp/") ||
-                                    dirPath.startsWith("/lost+found")) {
-                                    continue;
-                                }
-                                
-                                DirectoryStats stats = directoryStatsMap.computeIfAbsent(dirPath, k -> new DirectoryStats());
-                                stats.totalSize = size;
-                                stats.directoryCount = 1;
-                                
-                            } catch (NumberFormatException e) {
-                                logger.debug("Error parsing size from du output: {}", line);
-                            }
-                        }
-                    }
-                }
-                
-                process.waitFor();
-                
-                // Now count files in each directory
-                for (String dirPath : directoryStatsMap.keySet()) {
-                    try {
-                        // Count files recursively in this directory
-                        String fileCountCommand = String.format("find '%s' -type f ! -path '*/.*' 2>/dev/null | wc -l", 
-                            dirPath.replace("'", "'\"'\"'"));
-                        
-                        ProcessBuilder fileCountPb = new ProcessBuilder("bash", "-c", fileCountCommand);
-                        fileCountPb.redirectErrorStream(true);
-                        Process fileCountProcess = fileCountPb.start();
-                        
-                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(fileCountProcess.getInputStream()))) {
-                            String output = reader.readLine();
-                            if (output != null && !output.trim().isEmpty()) {
-                                try {
-                                    int fileCount = Integer.parseInt(output.trim());
-                                    DirectoryStats stats = directoryStatsMap.get(dirPath);
-                                    if (stats != null) {
-                                        stats.fileCount = fileCount;
-                                    }
-                                } catch (NumberFormatException e) {
-                                    logger.debug("Error parsing file count for {}: {}", dirPath, output);
-                                }
-                            }
-                        }
-                        
-                        fileCountProcess.waitFor();
-                        
-                    } catch (Exception e) {
-                        logger.debug("Error counting files in directory {}: {}", dirPath, e.getMessage());
-                    }
-                }
+                long size = Files.size(child);
+                scan.rootStats.totalSize += size;
+                scan.rootStats.fileCount++;
+                offerLargest(scan, child.toString(), size);
             }
-            
-        } catch (Exception e) {
-            logger.warn("Error getting directory stats: {}", e.getMessage());
+        } catch (IOException e) {
+            logger.debug("Skipping unreadable entry {}: {}", child, e.getMessage());
         }
     }
-    
-    private void getFileInfo(String path, StorageConfig config, List<FileInfo> allFiles) {
-        try {
-            // Use find to get file information for largest files
-            String command = String.format("find '%s' -type f ! -path '*/.*' -printf '%%s %%p\\n' 2>/dev/null | sort -nr | head -n %d", 
-                path.replace("'", "'\"'\"'"), TOP_FILES_LIMIT);
-            
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    String[] parts = line.trim().split("\\s+", 2);
-                    if (parts.length >= 2) {
-                        try {
-                            long size = Long.parseLong(parts[0]);
-                            String filePath = parts[1];
-                            
-                            // Skip system directories for system-wide scanning
-                            if (config.getId() != null && config.getId().equals(-1L)) {
-                                if (filePath.startsWith("/proc/") || 
-                                    filePath.startsWith("/sys/") || 
-                                    filePath.startsWith("/dev/") ||
-                                    filePath.startsWith("/run/") ||
-                                    filePath.startsWith("/snap/") ||
-                                    filePath.startsWith("/var/lib/") ||
-                                    filePath.startsWith("/var/cache/") ||
-                                    filePath.startsWith("/var/log/") ||
-                                    filePath.startsWith("/tmp/") ||
-                                    filePath.startsWith("/lost+found")) {
-                                    continue;
-                                }
-                            }
-                            
-                            allFiles.add(new FileInfo(filePath, size));
-                            
-                        } catch (NumberFormatException e) {
-                            logger.debug("Error parsing size from find output: {}", line);
-                        }
-                    }
-                }
+
+    /**
+     * Apply {@code action} to the DirectoryStats of every ancestor of
+     * {@code node}, from its parent directory up to and including rootPath.
+     */
+    private void accumulateOnAncestors(ScanResult scan, Path rootPath, Path node,
+                                       Consumer<DirectoryStats> action) {
+        Path dir = node.getParent();
+        while (dir != null && dir.startsWith(rootPath)) {
+            DirectoryStats stats = scan.directoryStats.get(dir.toString());
+            if (stats != null) {
+                action.accept(stats);
             }
-            
-            process.waitFor();
-            
-        } catch (Exception e) {
-            logger.warn("Error getting file info: {}", e.getMessage());
+            if (dir.equals(rootPath)) {
+                break;
+            }
+            dir = dir.getParent();
         }
     }
-    
-    private void scanSingleDirectory(Path rootPath, StorageConfig config,
-                                     Map<String, DirectoryStats> directoryStatsMap,
-                                     List<FileInfo> allFiles) throws IOException {
-        DirectoryStats stats = new DirectoryStats();
-        String rootPathStr = rootPath.toString();
-        
-        try {
-            // Use ls -la to list directory contents with sizes
-            String command = String.format("ls -la '%s' 2>/dev/null", rootPathStr.replace("'", "'\"'\"'"));
-            ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-            
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                boolean firstLine = true; // Skip "total" line
-                while ((line = reader.readLine()) != null) {
-                    if (firstLine || line.trim().isEmpty()) {
-                        firstLine = false;
-                        continue;
-                    }
-                    
-                    // Parse ls -la output: permissions links owner group size date time name
-                    String[] parts = line.trim().split("\\s+", 9);
-                    if (parts.length >= 9) {
-                        String permissions = parts[0];
-                        String name = parts[8];
-                        
-                        // Skip hidden files and . and ..
-                        if (name.startsWith(".")) {
-                            continue;
-                        }
-                        
-                        try {
-                            if (permissions.startsWith("d")) {
-                                // Directory
-                                stats.addDirectory();
-                            } else if (permissions.startsWith("-")) {
-                                // Regular file
-                                long size = Long.parseLong(parts[4]);
-                                stats.addFile(size);
-                                allFiles.add(new FileInfo(rootPathStr + "/" + name, size));
-                            }
-                        } catch (NumberFormatException e) {
-                            logger.debug("Error parsing size from ls output: {}", line);
-                        }
-                    }
-                }
-            }
-            
-            process.waitFor();
-            
-        } catch (Exception e) {
-            logger.warn("Error scanning single directory with Linux command: {}", e.getMessage());
-            throw new IOException("Failed to scan directory", e);
+
+    /** Keep only the TOP_FILES_LIMIT largest files - memory stays bounded. */
+    private void offerLargest(ScanResult scan, String path, long size) {
+        scan.largestFiles.offer(new FileInfo(path, size));
+        if (scan.largestFiles.size() > TOP_FILES_LIMIT) {
+            scan.largestFiles.poll();
         }
-        
-        directoryStatsMap.put(rootPathStr, stats);
     }
-    
+
+    private boolean isHidden(Path path) {
+        Path name = path.getFileName();
+        return name != null && name.toString().startsWith(".");
+    }
+
+    private static class ScanResult {
+        final Map<String, DirectoryStats> directoryStats = new HashMap<>();
+        /** Min-heap of the largest files seen so far, capped at TOP_FILES_LIMIT. */
+        final PriorityQueue<FileInfo> largestFiles =
+                new PriorityQueue<>(Comparator.comparingLong(f -> f.size));
+        final DirectoryStats rootStats = new DirectoryStats();
+    }
+
     private static class DirectoryStats {
         long totalSize = 0;
         int fileCount = 0;
         int directoryCount = 0;
-        
-        void addFile(long size) {
-            totalSize += size;
-            fileCount++;
-        }
-        
-        void addDirectory() {
-            directoryCount++;
-        }
     }
-    
+
     private static class FileInfo {
-        String path;
-        long size;
-        
+        final String path;
+        final long size;
+
         FileInfo(String path, long size) {
             this.path = path;
             this.size = size;

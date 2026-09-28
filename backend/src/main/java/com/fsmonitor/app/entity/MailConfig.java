@@ -1,6 +1,16 @@
 package com.fsmonitor.app.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fsmonitor.app.util.EncryptedStringConverter;
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
@@ -26,6 +36,8 @@ public class MailConfig {
     @Column(name = "username")
     private String username;
     
+    @Convert(converter = EncryptedStringConverter.class)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "password")
     private String password;
     
@@ -67,6 +79,12 @@ public class MailConfig {
     
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    /** Exposes whether a password is stored without revealing it. */
+    @JsonProperty("passwordSet")
+    public boolean isPasswordSet() {
+        return password != null && !password.isEmpty();
+    }
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

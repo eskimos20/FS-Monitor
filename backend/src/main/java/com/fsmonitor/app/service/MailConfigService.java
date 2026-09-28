@@ -2,7 +2,6 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.entity.MailConfig;
 import com.fsmonitor.app.repository.MailConfigRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,12 +10,21 @@ import java.util.Optional;
 @Service
 public class MailConfigService {
     
-    @Autowired
-    private MailConfigRepository mailConfigRepository;
+    private final MailConfigRepository mailConfigRepository;
+
+    public MailConfigService(MailConfigRepository mailConfigRepository) {
+        this.mailConfigRepository = mailConfigRepository;
+    }
     
     @Transactional
     public MailConfig saveMailConfig(MailConfig mailConfig) {
-        // Delete existing config if any
+        // Password is write-only in JSON: when the incoming config omits it,
+        // preserve the currently stored password instead of wiping it.
+        if (mailConfig.getPassword() == null || mailConfig.getPassword().isBlank()) {
+            getCurrentMailConfig().ifPresent(existing ->
+                    mailConfig.setPassword(existing.getPassword()));
+        }
+        // Single config: replace existing
         mailConfigRepository.deleteAll();
         return mailConfigRepository.save(mailConfig);
     }

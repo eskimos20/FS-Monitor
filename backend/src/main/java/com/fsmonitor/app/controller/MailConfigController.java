@@ -1,11 +1,18 @@
 package com.fsmonitor.app.controller;
 
+import com.fsmonitor.app.dto.MailConfigResponse;
 import com.fsmonitor.app.entity.MailConfig;
 import com.fsmonitor.app.service.MailConfigService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
 
@@ -13,30 +20,31 @@ import java.util.Optional;
 @RequestMapping("/api/mail-config")
 @PreAuthorize("hasRole('ADMIN')")
 public class MailConfigController {
-    
-    @Autowired
-    private MailConfigService mailConfigService;
-    
+
+    private final MailConfigService mailConfigService;
+
+    public MailConfigController(MailConfigService mailConfigService) {
+        this.mailConfigService = mailConfigService;
+    }
+
     @GetMapping
-    public ResponseEntity<MailConfig> getCurrentMailConfig() {
+    public ResponseEntity<MailConfigResponse> getCurrentMailConfig() {
         Optional<MailConfig> mailConfig = mailConfigService.getCurrentMailConfig();
-        return mailConfig.map(ResponseEntity::ok)
+        return mailConfig.map(config -> ResponseEntity.ok(MailConfigResponse.from(config)))
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
     @PostMapping
-    public ResponseEntity<MailConfig> saveMailConfig(@RequestBody MailConfig mailConfig) {
-        MailConfig savedConfig = mailConfigService.saveMailConfig(mailConfig);
-        return ResponseEntity.ok(savedConfig);
+    public ResponseEntity<MailConfigResponse> saveMailConfig(@RequestBody MailConfig mailConfig) {
+        return ResponseEntity.ok(MailConfigResponse.from(mailConfigService.saveMailConfig(mailConfig)));
     }
-    
+
     @PutMapping("/{id}")
-    public ResponseEntity<MailConfig> updateMailConfig(@PathVariable Long id, @RequestBody MailConfig mailConfig) {
+    public ResponseEntity<MailConfigResponse> updateMailConfig(@PathVariable Long id, @RequestBody MailConfig mailConfig) {
         mailConfig.setId(id);
-        MailConfig updatedConfig = mailConfigService.saveMailConfig(mailConfig);
-        return ResponseEntity.ok(updatedConfig);
+        return ResponseEntity.ok(MailConfigResponse.from(mailConfigService.saveMailConfig(mailConfig)));
     }
-    
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteMailConfig(@PathVariable Long id) {
         mailConfigService.deleteMailConfig(id);

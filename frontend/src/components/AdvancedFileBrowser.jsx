@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import api from '../api/axios';
 import { 
   Dialog, 
   DialogBackdrop, 
@@ -35,73 +36,61 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
   // Load root directories
   const loadRoots = useCallback(async () => {
     try {
-      const response = await fetch('/api/file-browser/roots');
-      const data = await response.json();
-      
-      if (response.ok) {
-        const rootsData = data.map(root => ({
-          ...root,
-          id: root.path,
-          name: root.name,
-          type: 'root',
-          children: [],
-          isExpanded: false
-        }));
-        setRoots(rootsData);
-      } else {
-        setError('Failed to load root directories');
-      }
+      const { data } = await api.get('/file-browser/roots');
+      const rootsData = data.map(root => ({
+        ...root,
+        id: root.path,
+        name: root.name,
+        type: 'root',
+        children: [],
+        isExpanded: false
+      }));
+      setRoots(rootsData);
     } catch (err) {
       setError('Failed to load root directories');
     }
   }, []);
 
   // Load directory contents
-  const loadDirectory = useCallback(async (path, nodeId) => {
+  const loadDirectory = useCallback(async (path, nodeId, atRootsView) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await fetch(`/api/file-browser/list?path=${encodeURIComponent(path)}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        const directories = (data.directories || []).map(dir => ({
-          ...dir,
-          id: dir.path,
-          type: 'directory',
-          children: [],
-          isExpanded: false,
-          parentPath: path
-        }));
-        
-        const files = (data.files || []).map(file => ({
-          ...file,
-          id: file.path,
-          type: 'file',
-          parentPath: path
-        }));
-        
-        // Update tree data
-        if (showRoots) {
-          setTreeData(directories);
-        } else {
-          const updatedTree = updateNodeInTree(treeData, nodeId, { children: [...directories, ...files] });
-          setTreeData(updatedTree);
-        }
-        
-        return { directories, files };
+      const { data } = await api.get('/file-browser/list', { params: { path } });
+
+      const directories = (data.directories || []).map(dir => ({
+        ...dir,
+        id: dir.path,
+        type: 'directory',
+        children: [],
+        isExpanded: false,
+        parentPath: path
+      }));
+
+      const files = (data.files || []).map(file => ({
+        ...file,
+        id: file.path,
+        type: 'file',
+        parentPath: path
+      }));
+
+      // Update tree data
+      if (atRootsView) {
+        setTreeData(allowFileSelection ? [...directories, ...files] : directories);
       } else {
-        setError(data.error || 'Failed to load directory');
-        return { directories: [], files: [] };
+        const updatedTree = updateNodeInTree(treeData, nodeId, { children: [...directories, ...files] });
+        setTreeData(updatedTree);
       }
+
+      return { directories, files };
     } catch (err) {
-      setError('Failed to connect to server');
+      setError(err.response?.data?.error || 'Failed to load directory');
       return { directories: [], files: [] };
     } finally {
       setLoading(false);
     }
-  }, [showRoots, treeData]);
+  }, [treeData, allowFileSelection]);
 
   // Update a specific node in the tree
   const updateNodeInTree = (tree, nodeId, updates) => {
@@ -139,7 +128,7 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
       
       // Load children if not already loaded
       if (!node.children || node.children.length === 0) {
-        await loadDirectory(node.path, node.id);
+        await loadDirectory(node.path, node.id, false);
       }
     }
   }, [expandedNodes, loadDirectory]);
@@ -160,7 +149,7 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
         setShowRoots(false);
         setCurrentPath(node.path);
         // Load the directory content as tree data
-        loadDirectory(node.path, node.id);
+        loadDirectory(node.path, node.id, true);
       } else {
         toggleNode(node);
       }
@@ -223,8 +212,8 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
       <div key={node.id}>
         <div
           className={`
-            flex items-center py-2 px-3 cursor-pointer hover:bg-gray-50 rounded-lg transition-colors
-            ${isSelected ? 'bg-blue-50 border border-blue-200' : ''}
+            flex items-center py-2 px-3 cursor-pointer hover:bg-surface-50 rounded-lg transition-colors
+            ${isSelected ? 'bg-primary-50 border border-primary-200' : ''}
             ${level > 0 ? `ml-${Math.min(level * 4, 12)}` : ''}
           `}
           style={{ paddingLeft: `${level * 20 + 12}px` }}
@@ -234,40 +223,40 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
           {hasChildren && (
             <div className="mr-1">
               {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-surface-400" />
               ) : isExpanded ? (
-                <ChevronDown className="h-4 w-4 text-gray-400" />
+                <ChevronDown className="h-4 w-4 text-surface-400" />
               ) : (
-                <ChevronRight className="h-4 w-4 text-gray-400" />
+                <ChevronRight className="h-4 w-4 text-surface-400" />
               )}
             </div>
           )}
           
           <div className="mr-3">
-            {node.type === 'root' && <HardDrive className="h-5 w-5 text-blue-500" />}
+            {node.type === 'root' && <HardDrive className="h-5 w-5 text-primary-500" />}
             {node.type === 'directory' && (
               isExpanded ? (
-                <FolderOpen className="h-5 w-5 text-blue-500" />
+                <FolderOpen className="h-5 w-5 text-primary-500" />
               ) : (
-                <Folder className="h-5 w-5 text-blue-500" />
+                <Folder className="h-5 w-5 text-primary-500" />
               )
             )}
-            {node.type === 'file' && <File className="h-5 w-5 text-gray-400" />}
+            {node.type === 'file' && <File className="h-5 w-5 text-surface-400" />}
           </div>
           
           <div className="flex-1 min-w-0">
-            <div className={`text-sm font-medium truncate ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+            <div className={`text-sm font-medium truncate ${isSelected ? 'text-primary-800' : 'text-surface-900'}`}>
               {node.name}
             </div>
             {node.type === 'file' && node.size && (
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-surface-500">
                 {formatFileSize(node.size)}
               </div>
             )}
           </div>
           
           {isSelected && (
-            <Check className="h-4 w-4 text-blue-600 ml-2" />
+            <Check className="h-4 w-4 text-primary-600 ml-2" />
           )}
         </div>
         
@@ -292,7 +281,7 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
   return (
     <Transition appear show={isOpen} as={React.Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-25 transition-opacity" />
+        <DialogBackdrop className="fixed inset-0 bg-surface-900/40 backdrop-blur-[2px] transition-opacity" />
         
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4">
@@ -304,16 +293,16 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <DialogTitle className="text-lg font-semibold text-gray-900 mb-4">
+              <DialogPanel className="w-full max-w-4xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-pop transition-all">
+                <DialogTitle className="text-lg font-semibold text-surface-900 mb-4">
                   Select Directory
                 </DialogTitle>
                 
                 {/* Breadcrumb */}
-                <div className="flex items-center space-x-2 mb-4 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 mb-4 text-sm text-surface-600">
                   <button
                     onClick={navigateToRoot}
-                    className="hover:text-blue-600 flex items-center"
+                    className="hover:text-primary-600 flex items-center"
                   >
                     <Home className="h-4 w-4 mr-1" />
                     Root
@@ -325,7 +314,7 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
                         <span>/</span>
                         <button
                           onClick={() => setCurrentPath(path)}
-                          className="hover:text-blue-600"
+                          className="hover:text-primary-600"
                         >
                           {part}
                         </button>
@@ -335,19 +324,19 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
                 </div>
 
                 {/* Toolbar */}
-                <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between mb-4 p-3 bg-surface-50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={navigateToParent}
                       disabled={showRoots}
-                      className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center px-3 py-1 text-sm bg-white border border-surface-300 rounded hover:bg-surface-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ArrowLeft className="h-4 w-4 mr-1" />
                       Up
                     </button>
                     <button
-                      onClick={() => loadDirectory(currentPath, 'root')}
-                      className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
+                      onClick={() => showRoots ? loadRoots() : loadDirectory(currentPath, null, true)}
+                      className="flex items-center px-3 py-1 text-sm bg-white border border-surface-300 rounded hover:bg-surface-50"
                     >
                       Refresh
                     </button>
@@ -355,8 +344,8 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
                   
                   {selectedPath && (
                     <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-600">Selected:</span>
-                      <span className="text-sm font-medium text-blue-600 truncate max-w-xs">
+                      <span className="text-sm text-surface-600">Selected:</span>
+                      <span className="text-sm font-medium text-primary-600 truncate max-w-xs">
                         {selectedPath}
                       </span>
                     </div>
@@ -371,10 +360,10 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
                 )}
 
                 {/* Tree View */}
-                <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 max-h-96 overflow-y-auto">
+                <div className="border border-surface-200 rounded-lg p-4 bg-surface-50 max-h-96 overflow-y-auto scroll-slim">
                   {showRoots ? (
                     <div className="space-y-1">
-                      <div className="flex items-center mb-3 text-sm font-medium text-gray-700">
+                      <div className="flex items-center mb-3 text-sm font-medium text-surface-700">
                         <FolderTree className="h-4 w-4 mr-2" />
                         Root Directories
                       </div>
@@ -383,8 +372,8 @@ const AdvancedFileBrowser = ({ onPathSelect, initialPath = '/', isOpen, onClose,
                   ) : (
                     <div className="space-y-1">
                       {treeData.length === 0 && !loading && (
-                        <div className="text-center py-8 text-gray-500">
-                          <Folder className="h-12 w-12 mx-auto mb-2 text-gray-300" />
+                        <div className="text-center py-8 text-surface-500">
+                          <Folder className="h-12 w-12 mx-auto mb-2 text-surface-300" />
                           <p>Empty directory</p>
                         </div>
                       )}

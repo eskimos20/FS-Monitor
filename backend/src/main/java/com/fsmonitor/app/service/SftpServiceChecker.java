@@ -6,15 +6,26 @@ import com.jcraft.jsch.Session;
 import com.jcraft.jsch.ChannelSftp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Properties;
 
 @Component
 public class SftpServiceChecker implements ServiceChecker {
     private static final Logger logger = LoggerFactory.getLogger(SftpServiceChecker.class);
     private static final int TIMEOUT_MS = 5000;
+
+    /**
+     * Path to an OpenSSH-format known_hosts file. If the file exists it is
+     * used for strict host key verification; otherwise we fall back to
+     * accepting any host key (with a warning) so existing setups keep working.
+     */
+    @Value("${fsmonitor.sftp.known-hosts:${user.home}/.ssh/known_hosts}")
+    private String knownHostsPath;
 
     @Override
     public boolean check(Service service) {
@@ -52,9 +63,17 @@ public class SftpServiceChecker implements ServiceChecker {
                 session.setPassword(service.getPassword());
             }
             
-            // Disable strict host key checking
+            // Host key verification: use known_hosts when available
             Properties config = new Properties();
-            config.put("StrictHostKeyChecking", "no");
+            if (knownHostsPath != null && Files.exists(Path.of(knownHostsPath))) {
+                jsch.setKnownHosts(knownHostsPath);
+                config.put("StrictHostKeyChecking", "yes");
+            } else {
+                logger.warn("No SSH known_hosts file at {} - accepting any host key for {}. " +
+                            "Configure fsmonitor.sftp.known-hosts for strict verification.",
+                            knownHostsPath, host);
+                config.put("StrictHostKeyChecking", "no");
+            }
             session.setConfig(config);
             session.setTimeout(TIMEOUT_MS);
             

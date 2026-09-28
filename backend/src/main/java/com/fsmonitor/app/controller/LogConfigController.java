@@ -1,92 +1,80 @@
 package com.fsmonitor.app.controller;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager.LogMatchResultData;
+import com.fsmonitor.app.cache.model.LogMatchResultData;
+import com.fsmonitor.app.dto.LogConfigResponse;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
-import com.fsmonitor.app.repository.LogConfigRepository;
+import com.fsmonitor.app.service.LogConfigService;
 import com.fsmonitor.app.service.LogMonitoringService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/log-configs")
-@CrossOrigin(origins = "*")
 public class LogConfigController {
 
-    private static final Logger logger = LoggerFactory.getLogger(LogConfigController.class);
+    private final LogConfigService logConfigService;
+    private final LogMonitoringService logMonitoringService;
 
-    @Autowired
-    private LogConfigRepository logConfigRepository;
-
-    @Autowired
-    private LogMonitoringService logMonitoringService;
+    public LogConfigController(LogConfigService logConfigService,
+                               LogMonitoringService logMonitoringService) {
+        this.logConfigService = logConfigService;
+        this.logMonitoringService = logMonitoringService;
+    }
 
     @GetMapping
-    public List<LogConfig> getAllLogConfigs() {
-        return logConfigRepository.findAll();
+    public List<LogConfigResponse> getAllLogConfigs() {
+        return logConfigService.findAll().stream()
+                .map(LogConfigResponse::from)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<LogConfig> getLogConfig(@PathVariable Long id) {
-        return logConfigRepository.findById(id)
-                .map(ResponseEntity::ok)
+    public ResponseEntity<LogConfigResponse> getLogConfig(@PathVariable Long id) {
+        return logConfigService.findById(id)
+                .map(config -> ResponseEntity.ok(LogConfigResponse.from(config)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping
-    public LogConfig createLogConfig(@RequestBody LogConfig logConfig) {
-        return logConfigRepository.save(logConfig);
+    @PreAuthorize("hasRole('ADMIN')")
+    public LogConfigResponse createLogConfig(@RequestBody LogConfig logConfig) {
+        return LogConfigResponse.from(logConfigService.create(logConfig));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<LogConfig> updateLogConfig(@PathVariable Long id, @RequestBody LogConfig logConfig) {
-        return logConfigRepository.findById(id)
-                .map(existing -> {
-                    // Check if keywords changed - if so, clear old matches
-                    boolean keywordsChanged = !existing.getKeywords().equals(logConfig.getKeywords());
-                    
-                    existing.setName(logConfig.getName());
-                    existing.setPath(logConfig.getPath());
-                    existing.setFileTypes(logConfig.getFileTypes());
-                    existing.setKeywords(logConfig.getKeywords());
-                    existing.setCheckIntervalMinutes(logConfig.getCheckIntervalMinutes());
-                    existing.setRecursive(logConfig.isRecursive());
-                    existing.setActive(logConfig.isActive());
-                    
-                    // Clear matches if keywords changed
-                    if (keywordsChanged) {
-                        logMonitoringService.clearMatchesForConfig(id);
-                    }
-                    
-                    return ResponseEntity.ok(logConfigRepository.save(existing));
-                })
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<LogConfigResponse> updateLogConfig(@PathVariable Long id, @RequestBody LogConfig logConfig) {
+        return logConfigService.update(id, logConfig)
+                .map(config -> ResponseEntity.ok(LogConfigResponse.from(config)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteLogConfig(@PathVariable Long id) {
-        return logConfigRepository.findById(id)
-                .map(config -> {
-                    logMonitoringService.clearMatchesForConfig(id);
-                    logConfigRepository.delete(config);
-                    return ResponseEntity.ok().<Void>build();
-                })
-                .orElse(ResponseEntity.notFound().build());
+        return logConfigService.delete(id)
+                ? ResponseEntity.ok().<Void>build()
+                : ResponseEntity.notFound().build();
     }
 
     @PostMapping("/{id}/toggle")
-    public ResponseEntity<LogConfig> toggleLogConfig(@PathVariable Long id) {
-        return logConfigRepository.findById(id)
-                .map(config -> {
-                    config.setActive(!config.isActive());
-                    return ResponseEntity.ok(logConfigRepository.save(config));
-                })
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<LogConfigResponse> toggleLogConfig(@PathVariable Long id) {
+        return logConfigService.toggle(id)
+                .map(config -> ResponseEntity.ok(LogConfigResponse.from(config)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -102,15 +90,11 @@ public class LogConfigController {
 
     @GetMapping("/matches/recent")
     public List<LogMatchResultData> getRecentMatches(@RequestParam(defaultValue = "24") int hours) {
-        List<LogMatchResultData> matches = logMonitoringService.getRecentMatches(hours);
-        return matches;
+        return logMonitoringService.getRecentMatches(hours);
     }
 
     @GetMapping("/{id}/matches")
     public List<LogMatchResultData> getMatchesForConfig(@PathVariable Long id) {
-        logger.info("Getting matches for config ID: {}", id);
-        List<LogMatchResultData> matches = logMonitoringService.getMatchesForConfig(id);
-        logger.info("Returning {} matches for config ID: {}", matches.size(), id);
-        return matches;
+        return logMonitoringService.getMatchesForConfig(id);
     }
 }

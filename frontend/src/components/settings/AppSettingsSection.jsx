@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Edit, Save, X } from 'lucide-react';
+import { Pencil, Save, X } from 'lucide-react';
+import FormField from '../ui/FormField';
+import DetailItem from '../ui/DetailItem';
 
 const AppSettingsSection = ({ appSettings, onSave }) => {
   const [isEditing, setIsEditing] = useState(!appSettings);
@@ -35,54 +37,44 @@ const AppSettingsSection = ({ appSettings, onSave }) => {
     return (
       <div className="space-y-4">
         <div className="flex justify-end">
-          <button
-            onClick={() => setIsEditing(true)}
-            className="btn-secondary flex items-center"
-          >
-            <Edit className="h-4 w-4 mr-2" />
+          <button onClick={() => setIsEditing(true)} className="btn-secondary">
+            <Pencil className="h-4 w-4 mr-1.5" />
             Edit Settings
           </button>
         </div>
 
-        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Dashboard Refresh Interval</p>
-            <p className="text-sm text-gray-900">{formData.refreshIntervalSeconds} seconds</p>
-          </div>
+        <div className="bg-surface-50/70 border border-surface-200 rounded-xl p-5">
+          <DetailItem label="Dashboard Refresh Interval">
+            {formData.refreshIntervalSeconds} seconds
+          </DetailItem>
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Dashboard Refresh Interval (seconds)
-        </label>
-        <input
-          type="number"
-          min="1"
-          max="60"
-          value={formData.refreshIntervalSeconds}
-          onChange={(e) => setFormData({ ...formData, refreshIntervalSeconds: parseInt(e.target.value) || 5 })}
-          className="input-field w-32"
-          required
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          How often CPU and Memory stats refresh on the Dashboard (1-60 seconds)
-        </p>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <FormField
+        label="Dashboard Refresh Interval (seconds)"
+        type="number"
+        min="1"
+        max="60"
+        value={formData.refreshIntervalSeconds}
+        onChange={(e) => setFormData({ ...formData, refreshIntervalSeconds: parseInt(e.target.value) || 5 })}
+        className="w-32"
+        hint="How often CPU and Memory stats refresh on the Dashboard (1–60 seconds)"
+        required
+      />
 
-      <div className="flex justify-end gap-3 pt-4 border-t">
+      <div className="flex justify-end gap-2 pt-4 border-t border-surface-200">
         {appSettings && (
-          <button type="button" onClick={handleCancel} className="btn-secondary flex items-center">
-            <X className="h-4 w-4 mr-2" />
+          <button type="button" onClick={handleCancel} className="btn-secondary">
+            <X className="h-4 w-4 mr-1.5" />
             Cancel
           </button>
         )}
-        <button type="submit" className="btn-primary flex items-center">
-          <Save className="h-4 w-4 mr-2" />
+        <button type="submit" className="btn-primary">
+          <Save className="h-4 w-4 mr-1.5" />
           Save Settings
         </button>
       </div>

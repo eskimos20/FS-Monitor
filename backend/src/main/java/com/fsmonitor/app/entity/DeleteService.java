@@ -1,6 +1,15 @@
 package com.fsmonitor.app.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
@@ -93,7 +102,8 @@ public class DeleteService {
     public void setCleanupIntervalUnit(TimeInterval cleanupIntervalUnit) { this.cleanupIntervalUnit = cleanupIntervalUnit; }
 
     public Long getCleanupIntervalMinutes() {
-        return cleanupIntervalUnit.toMinutes(cleanupIntervalValue);
+        TimeInterval unit = cleanupIntervalUnit != null ? cleanupIntervalUnit : TimeInterval.HOURS;
+        return unit.toMinutes(cleanupIntervalValue != null ? cleanupIntervalValue : 24);
     }
 
     public Integer getDeleteAgeValue() { return deleteAgeValue; }
@@ -103,7 +113,8 @@ public class DeleteService {
     public void setDeleteAgeUnit(TimeInterval deleteAgeUnit) { this.deleteAgeUnit = deleteAgeUnit; }
 
     public Long getDeleteAgeMinutes() {
-        return deleteAgeUnit.toMinutes(deleteAgeValue);
+        TimeInterval unit = deleteAgeUnit != null ? deleteAgeUnit : TimeInterval.DAYS;
+        return unit.toMinutes(deleteAgeValue != null ? deleteAgeValue : 30);
     }
 
     public Boolean getRecursive() { return recursive; }

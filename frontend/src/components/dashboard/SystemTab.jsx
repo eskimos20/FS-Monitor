@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Cpu, HardDrive, Activity, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Cpu, HardDrive, Activity, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 import StatsCard from '../StatsCard';
 
 const SystemTab = ({ systemStats }) => {
@@ -65,8 +65,8 @@ const SystemTab = ({ systemStats }) => {
 
   if (!systemStats) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-500" />
       </div>
     );
   }
@@ -74,57 +74,62 @@ const SystemTab = ({ systemStats }) => {
   return (
     <div className="space-y-6">
       {/* System Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <StatsCard
           icon={Cpu}
           label="CPU Usage (Total)"
           value={`${systemStats.cpuUsage.toFixed(1)}%`}
           iconColor="text-purple-600"
+          tint="bg-purple-50"
+          percent={systemStats.cpuUsage}
         />
         <StatsCard
           icon={HardDrive}
           label="Memory Usage"
           value={`${systemStats.memoryUsagePercent.toFixed(1)}%`}
           iconColor="text-orange-600"
+          tint="bg-orange-50"
+          percent={systemStats.memoryUsagePercent}
         />
         <StatsCard
           icon={Activity}
           label="Processes"
           value={systemStats.processCount}
           iconColor="text-teal-600"
+          tint="bg-teal-50"
         />
       </div>
 
       {/* CPU per Core Visualization - htop style */}
       {systemStats.cpuPerCoreList && systemStats.cpuPerCoreList.length > 0 && (
         <div className="card">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold text-gray-900">CPU Usage per Core</h2>
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1 text-xs text-gray-500">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Live</span>
-              </div>
-              <div className="text-sm text-gray-500">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="section-title">CPU Usage per Core</h2>
+            <div className="flex items-center gap-3">
+              <span className="badge-neutral">
+                <span className="status-dot bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+              <span className="text-xs text-surface-500 tnum">
                 {systemStats.availableProcessors} cores
-              </div>
+              </span>
             </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
             {systemStats.cpuPerCoreList.map((usage, index) => (
-              <div key={index} className="flex items-center space-x-2">
-                <div className="text-xs font-mono text-gray-600 w-8">
-                  {index}:
+              <div key={index} className="flex items-center gap-2">
+                <div className="text-xs font-mono text-surface-500 w-7 tnum">
+                  {index}
                 </div>
-                <div className="flex-1 bg-gray-200 rounded-sm h-4 relative overflow-hidden">
-                  <div 
-                    className={`h-full transition-all duration-300 ${
-                      usage > 80 ? 'bg-red-500' : usage > 50 ? 'bg-yellow-500' : 'bg-green-500'
+                <div className="flex-1 bg-surface-100 rounded-full h-2 relative overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      usage > 80 ? 'bg-red-500' : usage > 50 ? 'bg-amber-500' : 'bg-emerald-500'
                     }`}
                     style={{width: `${Math.min(usage, 100)}%`}}
-                  ></div>
+                  />
                 </div>
-                <div className="text-xs font-mono text-gray-900 w-12 text-right">
+                <div className="text-xs font-mono text-surface-700 w-12 text-right tnum">
                   {usage.toFixed(1)}%
                 </div>
               </div>
@@ -135,123 +140,76 @@ const SystemTab = ({ systemStats }) => {
 
       {/* Top Processes Table - Scrollable */}
       {systemStats.topProcesses && systemStats.topProcesses.length > 0 && (
-        <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">All Processes by CPU</h2>
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-1 text-xs text-gray-500">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Live</span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <Cpu className="h-4 w-4" />
-                <span>{lastUpdate.toLocaleTimeString()}</span>
-              </div>
+        <div className="card !p-0 overflow-hidden">
+          <div className="flex justify-between items-center px-6 py-4 border-b border-surface-100">
+            <h2 className="section-title">Processes by CPU</h2>
+            <div className="flex items-center gap-3">
+              <span className="badge-neutral">
+                <span className="status-dot bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+              <span className="flex items-center gap-1.5 text-xs text-surface-500 tnum">
+                <Cpu className="h-3.5 w-3.5" />
+                {lastUpdate.toLocaleTimeString()}
+              </span>
             </div>
           </div>
 
-          <div className="overflow-x-auto max-h-96 overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
+          <div className="overflow-x-auto scroll-slim max-h-96 overflow-y-auto">
+            <table className="table-shell">
+              <thead className="table-head sticky top-0">
                 <tr>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('pid')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>PID</span>
-                      {sortColumn === 'pid' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('user')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>User</span>
-                      {sortColumn === 'user' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('name')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Process</span>
-                      {sortColumn === 'name' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('cpuUsage')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>CPU %</span>
-                      {sortColumn === 'cpuUsage' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('memoryMB')}
-                  >
-                    <div className="flex items-center space-x-1">
-                      <span>Memory</span>
-                      {sortColumn === 'memoryMB' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-30" />
-                      )}
-                    </div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Command</th>
+                  {[
+                    { key: 'pid', label: 'PID' },
+                    { key: 'user', label: 'User' },
+                    { key: 'name', label: 'Process' },
+                    { key: 'cpuUsage', label: 'CPU %' },
+                    { key: 'memoryMB', label: 'Memory' },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      className="table-th cursor-pointer select-none hover:text-surface-700"
+                      onClick={() => handleSort(col.key)}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>{col.label}</span>
+                        {sortColumn === col.key ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-30" />
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                  <th className="table-th">Command</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-surface-100">
                 {sortedProcesses.map((process, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {process.pid}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {process.user}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {process.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <div className="flex items-center">
-                        <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2" style={{width: '60px'}}>
-                          <div 
-                            className="bg-purple-600 h-2 rounded-full" 
+                  <tr key={index} className="hover:bg-surface-50 transition-colors">
+                    <td className="table-td whitespace-nowrap font-mono text-xs tnum">{process.pid}</td>
+                    <td className="table-td whitespace-nowrap">{process.user}</td>
+                    <td className="table-td whitespace-nowrap font-medium text-surface-900">{process.name}</td>
+                    <td className="table-td whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-14 bg-surface-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full ${
+                              process.cpuUsage > 80 ? 'bg-red-500' : process.cpuUsage > 50 ? 'bg-amber-500' : 'bg-primary-500'
+                            }`}
                             style={{width: `${Math.min(process.cpuUsage, 100)}%`}}
-                          ></div>
+                          />
                         </div>
-                        <span>{process.cpuUsage.toFixed(1)}%</span>
+                        <span className="tnum">{process.cpuUsage.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="table-td whitespace-nowrap">
                       <div className="flex flex-col">
-                        <span className="font-medium">{process.memoryMB} MB</span>
-                        <span className="text-xs text-gray-500">{process.memoryUsage.toFixed(1)}%</span>
+                        <span className="font-medium tnum">{process.memoryMB} MB</span>
+                        <span className="text-xs text-surface-400 tnum">{process.memoryUsage.toFixed(1)}%</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-md truncate">
+                    <td className="table-td text-surface-500 max-w-md truncate font-mono text-xs">
                       {process.command}
                     </td>
                   </tr>

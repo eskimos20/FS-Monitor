@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Server } from 'lucide-react';
+import { Plus, Server } from 'lucide-react';
 import ServiceForm from './ServiceForm';
+import EmptyState from '../ui/EmptyState';
+import SettingsItemRow from '../ui/SettingsItemRow';
+import StatusBadge from '../ui/StatusBadge';
 
 const ServiceSettings = ({ services, onSave, onDelete }) => {
   const [showForm, setShowForm] = useState(false);
@@ -24,45 +27,34 @@ const ServiceSettings = ({ services, onSave, onDelete }) => {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button
-          onClick={() => setShowForm(true)}
-          className="btn-primary flex items-center"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add
+        <button onClick={() => setShowForm(true)} className="btn-primary">
+          <Plus className="h-4 w-4 mr-1.5" />
+          Add Service
         </button>
       </div>
 
       {services.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <Server className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-          <p>No services configured</p>
-        </div>
+        <EmptyState
+          icon={Server}
+          title="No services configured"
+          description="Add a service to monitor its availability."
+        />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {services.map((service) => (
-            <div key={service.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
-              <div className="flex-1">
-                <h3 className="font-medium text-gray-900">{service.name}</h3>
-                <p className="text-sm text-gray-500">
-                  {service.type} - {service.host}:{service.port}
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleEdit(service)}
-                  className="p-2 text-gray-600 hover:text-primary-600"
-                >
-                  <Edit className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => onDelete(service.id)}
-                  className="p-2 text-gray-600 hover:text-red-600"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            <SettingsItemRow
+              key={service.id}
+              title={service.name}
+              subtitle={`${service.type} · ${service.host}${service.port ? ':' + service.port : ''}`}
+              meta={
+                <StatusBadge
+                  variant={service.isActive ? 'success' : 'neutral'}
+                  label={service.isActive ? 'Enabled' : 'Disabled'}
+                />
+              }
+              onEdit={() => handleEdit(service)}
+              onDelete={() => onDelete(service.id)}
+            />
           ))}
         </div>
       )}

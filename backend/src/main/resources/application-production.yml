@@ -1,0 +1,29 @@
+# Production profile for FS-Monitor
+# Activate with: --spring.profiles.active=production (done automatically by
+# the systemd unit / run-production.sh)
+
+spring:
+  datasource:
+    url: jdbc:h2:file:${FS_MONITOR_DATA_DIR:/var/lib/fs-monitor}/fsmonitor;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:password}
+
+  h2:
+    console:
+      enabled: false
+
+fsmonitor:
+  data-dir: ${FS_MONITOR_DATA_DIR:/var/lib/fs-monitor}
+
+server:
+  port: ${SERVER_PORT:8085}
+  address: ${SERVER_ADDRESS:0.0.0.0}
+
+logging:
+  level:
+    com.fsmonitor.app: ${FS_MONITOR_LOG_LEVEL:INFO}
+  # Logs go to stdout and are captured by journald when running under systemd:
+  #   journalctl -u fs-monitor -f
+  # To also write a log file uncomment the line below:
+  # file:
+  #   name: /var/log/fs-monitor/fs-monitor.log

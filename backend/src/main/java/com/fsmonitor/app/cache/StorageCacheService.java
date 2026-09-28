@@ -1,12 +1,15 @@
 package com.fsmonitor.app.cache;
 
-import com.fsmonitor.app.cache.MonitoringCacheManager.StorageInfoData;
-import com.fsmonitor.app.cache.MonitoringCacheManager.LargestFileData;
-import com.fsmonitor.app.cache.MonitoringCacheManager.DiskSpaceData;
+import com.fsmonitor.app.cache.model.StorageInfoData;
+import com.fsmonitor.app.cache.model.LargestFileData;
+import com.fsmonitor.app.cache.model.DiskSpaceData;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Storage-specific cache service extending AbstractCacheService

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Folder, Server, Mail, FileSearch, HardDrive, Settings, Trash } from 'lucide-react';
+import { Folder, Server, Mail, FileSearch, HardDrive, Settings, Trash, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useSettings } from '../hooks/useSettings';
 import CollapsibleSection from '../components/CollapsibleSection';
+import PageHeader from '../components/ui/PageHeader';
 import IntegrationSettings from '../components/settings/IntegrationSettings';
 import MailConfigSettings from '../components/settings/MailConfigSettings';
 import ServiceSettings from '../components/settings/ServiceSettings';
@@ -39,39 +40,35 @@ const SettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-500" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Configure your monitoring integrations and notifications</p>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Settings"
+        subtitle="Configure monitoring integrations, notifications and application behaviour"
+      />
 
-      {/* Success/Error Messages */}
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-md max-w-3xl">
+        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm">
+          <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
           {success}
         </div>
       )}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md max-w-3xl">
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Settings Sections - Centrerad layout */}
-      <div className="max-w-4xl space-y-6">
+      <div className="space-y-4">
         <CollapsibleSection title="Email Configuration" icon={Mail} defaultOpen={false} storageKey="settings_email">
-          <MailConfigSettings
-            mailConfig={mailConfig}
-            onSave={saveMailConfig}
-          />
+          <MailConfigSettings mailConfig={mailConfig} onSave={saveMailConfig} />
         </CollapsibleSection>
 
         <CollapsibleSection title="File Integrations" icon={Folder} defaultOpen={true} storageKey="settings_integrations">
@@ -84,11 +81,7 @@ const SettingsPage = () => {
         </CollapsibleSection>
 
         <CollapsibleSection title="Service Monitoring" icon={Server} defaultOpen={true} storageKey="settings_services">
-          <ServiceSettings
-            services={services}
-            onSave={saveService}
-            onDelete={deleteService}
-          />
+          <ServiceSettings services={services} onSave={saveService} onDelete={deleteService} />
         </CollapsibleSection>
 
         <CollapsibleSection title="Storage Monitoring" icon={HardDrive} defaultOpen={false} storageKey="settings_storage">
@@ -116,10 +109,7 @@ const SettingsPage = () => {
         </CollapsibleSection>
 
         <CollapsibleSection title="Application Settings" icon={Settings} defaultOpen={true} storageKey="settings_application">
-          <AppSettingsSection
-            appSettings={appSettings}
-            onSave={saveAppSettings}
-          />
+          <AppSettingsSection appSettings={appSettings} onSave={saveAppSettings} />
         </CollapsibleSection>
       </div>
     </div>

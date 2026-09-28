@@ -1,32 +1,44 @@
 package com.fsmonitor.app.controller;
 
+import com.fsmonitor.app.dto.FileTypeResponse;
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.service.FileTypeService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/file-types")
 public class FileTypeController {
 
-    @Autowired
-    private FileTypeService fileTypeService;
+    private final FileTypeService fileTypeService;
+
+    public FileTypeController(FileTypeService fileTypeService) {
+        this.fileTypeService = fileTypeService;
+    }
 
     @GetMapping
-    public ResponseEntity<List<FileType>> getAllFileTypes() {
-        List<FileType> fileTypes = fileTypeService.getAllFileTypes();
-        return ResponseEntity.ok(fileTypes);
+    public ResponseEntity<List<FileTypeResponse>> getAllFileTypes() {
+        return ResponseEntity.ok(fileTypeService.getAllFileTypes().stream()
+                .map(FileTypeResponse::from)
+                .toList());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<FileType> getFileTypeById(@PathVariable Long id) {
+    public ResponseEntity<FileTypeResponse> getFileTypeById(@PathVariable Long id) {
         return fileTypeService.getFileTypeById(id)
-                .map(fileType -> ResponseEntity.ok().body(fileType))
+                .map(fileType -> ResponseEntity.ok(FileTypeResponse.from(fileType)))
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -34,18 +46,16 @@ public class FileTypeController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createFileType(@Valid @RequestBody FileType fileType) {
         try {
-            FileType createdFileType = fileTypeService.createFileType(fileType);
-            return ResponseEntity.ok(createdFileType);
+            return ResponseEntity.ok(FileTypeResponse.from(fileTypeService.createFileType(fileType)));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(409).body(java.util.Map.of("message", e.getMessage()));
+            return ResponseEntity.status(409).body(Map.of("message", e.getMessage()));
         }
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<FileType> updateFileType(@PathVariable Long id, @Valid @RequestBody FileType fileTypeDetails) {
-        FileType updatedFileType = fileTypeService.updateFileType(id, fileTypeDetails);
-        return ResponseEntity.ok(updatedFileType);
+    public ResponseEntity<FileTypeResponse> updateFileType(@PathVariable Long id, @Valid @RequestBody FileType fileTypeDetails) {
+        return ResponseEntity.ok(FileTypeResponse.from(fileTypeService.updateFileType(id, fileTypeDetails)));
     }
 
     @DeleteMapping("/{id}")

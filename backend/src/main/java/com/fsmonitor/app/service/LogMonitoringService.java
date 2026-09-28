@@ -2,32 +2,54 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.cache.LogCacheService;
 import com.fsmonitor.app.cache.LogCacheService.LogCache;
-import com.fsmonitor.app.cache.MonitoringCacheManager.LogMatchResultData;
+import com.fsmonitor.app.cache.model.LogMatchResultData;
 import com.fsmonitor.app.dto.LogMatch;
 import com.fsmonitor.app.entity.LogConfig;
 import com.fsmonitor.app.repository.LogConfigRepository;
 import com.fsmonitor.app.util.ShellCommandUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.*;
+import java.io.InputStreamReader;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class LogMonitoringService {
     private static final Logger logger = LoggerFactory.getLogger(LogMonitoringService.class);
 
-    @Autowired
-    private LogConfigRepository logConfigRepository;
+    @Value("${fsmonitor.command-timeout-seconds:120}")
+    private int commandTimeout;
 
-    @Autowired
-    private LogCacheService logCacheService;
+    private final LogConfigRepository logConfigRepository;
+    private final LogCacheService logCacheService;
+
+    public LogMonitoringService(LogConfigRepository logConfigRepository,
+                                LogCacheService logCacheService) {
+        this.logConfigRepository = logConfigRepository;
+        this.logCacheService = logCacheService;
+    }
 
     public List<LogMatch> searchLogs(Long configId) {
         List<LogMatch> matches = new ArrayList<>();
@@ -109,323 +131,245 @@ public class LogMonitoringService {
         }
     }
 
+    private static final int CONTEXT_LINES = 10;
+    private static final int MAX_MATCHES = 500;
+    private static final int MAX_CONTEXT_MATCHES_PER_FILE = 100;
+    private static final int FILE_BATCH_SIZE = 200;
+
     private List<LogMatch> searchLogsInternal(LogConfig config) {
-        List<LogMatch> matches = new ArrayList<>();
-        
-        logger.debug("Searching logs for config: {} (path: {}, keywords: {})", 
+        logger.debug("Searching logs for config: {} (path: {}, keywords: {})",
             config.getName(), config.getPath(), config.getKeywords());
 
+        List<LogMatch> matches = new ArrayList<>();
         try {
             Path path = Paths.get(config.getPath());
-            List<String> keywords = Arrays.asList(config.getKeywords().split(","))
-                    .stream()
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toList());
-
-            List<String> fileTypes = Arrays.asList(config.getFileTypes().split(","))
-                    .stream()
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .collect(Collectors.toList());
-
-            if (Files.isDirectory(path)) {
-                matches.addAll(searchDirectoryWithGrep(path, fileTypes, keywords, config.isRecursive()));
-            } else if (Files.isRegularFile(path)) {
-                matches.addAll(searchFileWithGrep(path, keywords));
-            } else {
-                logger.warn("Path does not exist or is not accessible: {}", path);
+            List<String> keywords = splitCsv(config.getKeywords());
+            if (keywords.isEmpty()) {
+                return matches;
             }
 
+            List<Path> files = collectCandidateFiles(path, splitCsv(config.getFileTypes()), config.isRecursive());
+            if (files.isEmpty()) {
+                return matches;
+            }
+
+            for (int i = 0; i < files.size() && matches.size() < MAX_MATCHES; i += FILE_BATCH_SIZE) {
+                List<Path> batch = files.subList(i, Math.min(i + FILE_BATCH_SIZE, files.size()));
+                matches.addAll(grepBatch(batch, keywords));
+            }
+            if (matches.size() > MAX_MATCHES) {
+                matches = new ArrayList<>(matches.subList(0, MAX_MATCHES));
+            }
+
+            attachContext(matches);
         } catch (Exception e) {
             logger.error("Error searching logs for config {}: {}", config.getId(), e.getMessage(), e);
         }
-        
+
         logger.debug("Log search completed for config {}, found {} matches", config.getName(), matches.size());
         return matches;
     }
-    
-    /**
-     * Search directory using Linux grep commands for memory efficiency
-     */
-    private List<LogMatch> searchDirectoryWithGrep(Path directory, List<String> fileTypes, List<String> keywords, boolean recursive) throws IOException {
-        List<LogMatch> matches = new ArrayList<>();
-        
-        // Build file type pattern for grep
-        String fileTypePattern = buildFileTypePattern(fileTypes);
-        
-        // Build grep command
-        String grepCommand = buildGrepCommand(directory.toString(), fileTypePattern, keywords, recursive);
-        
-        // Execute grep and parse results
-        List<String> output = executeGrepCommand(grepCommand);
-        
-        // Parse grep output with context into LogMatch objects
-        matches.addAll(parseGrepOutputWithContext(output, keywords));
-        
-        return matches;
+
+    private static List<String> splitCsv(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
-    
-    /**
-     * Search single file using Linux grep
-     */
-    private List<LogMatch> searchFileWithGrep(Path file, List<String> keywords) throws IOException {
-        List<LogMatch> matches = new ArrayList<>();
-        
-        // Build grep command for single file
-        String grepCommand = buildGrepCommandForFile(file.toString(), keywords);
-        
-        // Execute grep and parse results
-        List<String> output = executeGrepCommand(grepCommand);
-        
-        // Parse grep output with context into LogMatch objects
-        matches.addAll(parseGrepOutputWithContext(output, keywords));
-        
-        return matches;
+
+    private List<Path> collectCandidateFiles(Path path, List<String> fileTypes, boolean recursive) throws IOException {
+        if (Files.isRegularFile(path)) {
+            return List.of(path);
+        }
+        if (!Files.isDirectory(path)) {
+            logger.warn("Path does not exist or is not accessible: {}", path);
+            return List.of();
+        }
+        try (Stream<Path> stream = recursive ? Files.walk(path) : Files.list(path)) {
+            return stream
+                    .filter(f -> Files.isRegularFile(f, LinkOption.NOFOLLOW_LINKS))
+                    .filter(f -> !Files.isSymbolicLink(f))
+                    .filter(f -> matchesFileType(f.getFileName().toString(), fileTypes))
+                    .collect(Collectors.toList());
+        }
     }
-    
-    /**
-     * Build file type pattern for grep (robust for different log file types)
-     */
-    private String buildFileTypePattern(List<String> fileTypes) {
-        if (fileTypes.isEmpty()) {
-            return "*.log *.txt *.out *.err";
+
+    static boolean matchesFileType(String fileName, List<String> fileTypes) {
+        if (fileTypes == null || fileTypes.isEmpty()) {
+            return true;
         }
-        
-        return String.join(" ", fileTypes.stream()
-            .map(ft -> "*" + ft)
-            .collect(Collectors.toList()));
+        String lower = fileName.toLowerCase();
+        return fileTypes.stream().map(LogMonitoringService::normalizeExt).anyMatch(lower::endsWith);
     }
-    
-    /**
-     * Build grep command for directory search
-     */
-    private String buildGrepCommand(String path, String fileTypePattern, List<String> keywords, boolean recursive) {
-        StringBuilder command = new StringBuilder();
-        
-        // Find command to locate files
-        command.append("find ").append(ShellCommandUtil.escapeForBash(path));
-        
-        if (recursive) {
-            command.append(" -type f");
-        } else {
-            command.append(" -maxdepth 1 -type f");
+
+    private static String normalizeExt(String type) {
+        String t = type.trim().toLowerCase();
+        if (t.equals("*")) {
+            return "";
         }
-        
-        // Add file type filter - use regex to match only files ending with extension
-        command.append(" \\( ");
-        String[] types = fileTypePattern.isBlank() ? new String[0] : fileTypePattern.split(" +");
-        for (int i = 0; i < types.length; i++) {
-            if (i > 0) command.append(" -o ");
-            // Convert *.log to regex pattern that matches files ending with .log
-            String extension = types[i].replace("*", "").replace(".", "\\.");
-            command.append("-regex ").append(ShellCommandUtil.escapeForBash(".*" + extension)).append(" ");
-        }
-        command.append(" \\) ");
-        
-        // Execute grep on found files using xargs (more reliable with Java ProcessBuilder)
-        command.append(" | xargs -r grep -H -n -C 10 -i");
-        
-        // Add keywords (safely escaped)
-        for (String keyword : keywords) {
-            command.append(" -e ").append(ShellCommandUtil.escapeForBash(keyword)).append(" ");
-        }
-        
-        command.append("2>/dev/null");
-        
-        return command.toString();
+        int dot = t.lastIndexOf('.');
+        return dot >= 0 ? t.substring(dot) : "." + t;
     }
-    
+
     /**
-     * Build grep command for single file
+     * Runs grep in argv form (no shell): match lines only, NUL-separated filenames.
+     * Output format is deterministically {@code file\0lineno:content} so parsing is exact.
+     * Context lines are fetched afterwards via {@link #attachContext}.
      */
-    private String buildGrepCommandForFile(String filePath, List<String> keywords) {
-        StringBuilder command = new StringBuilder();
-        command.append("grep -H -n -C 10 -i");
-        
-        // Add keywords (safely escaped)
-        for (String keyword : keywords) {
-            command.append(" -e ").append(ShellCommandUtil.escapeForBash(keyword)).append(" ");
+    private List<LogMatch> grepBatch(List<Path> files, List<String> keywords) {
+        List<String> argv = new ArrayList<>();
+        argv.add("grep");
+        argv.add("-Hn");   // filename + line number
+        argv.add("-i");    // case-insensitive
+        argv.add("-F");    // keywords are literal strings, not regexes
+        argv.add("-I");    // skip binary files
+        argv.add("-Z");    // NUL after filename -> unambiguous parsing
+        for (String kw : keywords) {
+            argv.add("-e");
+            argv.add(kw);
         }
-        
-        command.append(" ").append(ShellCommandUtil.escapeForBash(filePath)).append(" 2>/dev/null");
-        
-        return command.toString();
-    }
-    
-    /**
-     * Execute grep command and return output lines
-     */
-    private List<String> executeGrepCommand(String command) throws IOException {
-        ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(command, 60);
-        int exitCode = result.getExitCode();
-        
-        // grep returns 0 when matches found, 1 when no matches found, 2+ for errors
-        // We accept both 0 and 1 as valid (1 can mean no matches OR matches with warnings)
-        if (exitCode > 1) {
-            // Check if this is a common fallback scenario (non-critical directory access)
-            if (command.contains("/var/log") || command.contains("/proc") || command.contains("/sys")) {
-                logger.debug("Grep command failed for system directory (exit code {}): {}", exitCode, command);
-            } else {
-                logger.warn("Grep command failed with exit code {}: {}", exitCode, command);
-            }
+        argv.add("--");
+        for (Path f : files) {
+            argv.add(f.toAbsolutePath().toString());
         }
-        logger.debug("Grep command completed with exit code {}: {} lines returned", exitCode, result.getOutput().size());
-        
-        return result.getOutput();
-    }
-    
-    /**
-     * Parse grep output with context (-C 10) into LogMatch objects
-     * Grep -C format:
-     *   file.log-90-context line before
-     *   file.log:100:MATCH LINE
-     *   file.log-101-context line after
-     *   --
-     */
-    private List<LogMatch> parseGrepOutputWithContext(List<String> grepOutput, List<String> keywords) {
-        List<LogMatch> matches = new ArrayList<>();
-        
-        List<String> contextBefore = new ArrayList<>();
-        List<String> contextAfter = new ArrayList<>();
-        LogMatch currentMatch = null;
-        boolean collectingAfter = false;
-        
-        for (String line : grepOutput) {
-            if (line.trim().isEmpty()) continue;
-            
-            // Context separator (--) - indicates end of a match block
-            if (line.startsWith("--")) {
-                // Save current match if exists
-                if (currentMatch != null) {
-                    currentMatch.setContextAfter(new ArrayList<>(contextAfter));
-                    matches.add(currentMatch);
-                    currentMatch = null;
-                }
-                // Reset for next block
-                contextBefore.clear();
-                contextAfter.clear();
-                collectingAfter = false;
-                continue;
-            }
-            
-            // Check if this is a match line (filename:linenumber:content)
-            // Match lines use : separator
-            // Must distinguish from context lines that contain : in timestamps
-            if (line.contains(":")) {
-                String[] parts = line.split(":", 3);
-                if (parts.length >= 3) {
-                    try {
-                        // Verify second part is a line number (not a timestamp like "20" or "07")
-                        int lineNum = Integer.parseInt(parts[1]);
-                        
-                        // Context lines look like: /var/log/file.log-6539-2026-04-07 07:20:46 ...
-                        // Match lines look like: /var/log/file.log:6539:content
-                        // Check if first part contains date pattern (YYYY-MM-DD or ends with space+number)
-                        String firstPart = parts[0];
-                        boolean isContextLine = firstPart.matches(".*-\\d{4}-\\d{2}-\\d{2}.*") || // Contains date
-                                                firstPart.matches(".*\\s+\\d+$") || // Ends with space+number (hour)
-                                                lineNum < 100; // Line numbers in timestamps are usually < 100 (hours/minutes)
-                        
-                        if (!isContextLine && firstPart.contains("/")) {
-                            // This is a real match line
-                            // Save previous match if exists
-                            if (currentMatch != null) {
-                                currentMatch.setContextAfter(new ArrayList<>(contextAfter));
-                                matches.add(currentMatch);
-                                // Don't clear contextBefore - next match in same block shares it
-                                contextAfter.clear();
-                            }
-                            
-                            // Parse new match line
-                            currentMatch = parseGrepOutput(line, keywords);
-                            // Set context before from accumulated lines (shared by all matches in block)
-                            currentMatch.setContextBefore(new ArrayList<>(contextBefore));
-                            contextAfter.clear();
-                            collectingAfter = true; // Now collect context after
-                            continue;
-                        }
-                    } catch (NumberFormatException e) {
-                        // Not a valid match line, treat as context
-                    }
-                }
-            }
-            
-            // Context line (filename-linenumber-content)
-            // Context lines use - separator
-            if (line.contains("-")) {
-                String[] parts = line.split("-", 3);
-                if (parts.length >= 3) {
-                    String content = parts[2];
-                    if (collectingAfter && currentMatch != null) {
-                        contextAfter.add(content);
-                    } else {
-                        contextBefore.add(content);
-                    }
-                }
-            }
-        }
-        
-        // Save the last match
-        if (currentMatch != null) {
-            currentMatch.setContextAfter(new ArrayList<>(contextAfter));
-            matches.add(currentMatch);
-        }
-        
-        return matches;
-    }
-    
-    /**
-     * Parse grep output into LogMatch object
-     * Grep format: filename:linenumber:matched_line
-     */
-    private LogMatch parseGrepOutput(String grepLine, List<String> keywords) {
-        if (grepLine == null || grepLine.trim().isEmpty()) {
-            return null;
-        }
-        
-        // Parse filename:linenumber:content
-        String[] parts = grepLine.split(":", 3);
-        if (parts.length < 3) {
-            return null;
-        }
-        
+
+        ShellCommandUtil.CommandResult result;
         try {
-            String fileName = parts[0];
-            int lineNumber = Integer.parseInt(parts[1]);
-            String matchedLine = parts[2];
-            
-            // Find which keyword matched
-            String matchedKeyword = null;
-            for (String keyword : keywords) {
-                if (matchedLine.toLowerCase().contains(keyword.toLowerCase())) {
-                    matchedKeyword = keyword;
+            result = ShellCommandUtil.execute(argv, commandTimeout);
+        } catch (Exception e) {
+            logger.error("grep execution failed", e);
+            return List.of();
+        }
+        // exit 0 = matches found, 1 = no matches (fine), >1 = error
+        if (result.exitCode() > 1) {
+            logger.warn("grep exited with code {} (some files may be unreadable)", result.exitCode());
+        }
+
+        List<LogMatch> matches = new ArrayList<>();
+        for (String line : result.output()) {
+            LogMatch m = parseGrepLine(line, keywords);
+            if (m != null) {
+                matches.add(m);
+            }
+        }
+        return matches;
+    }
+
+    static LogMatch parseGrepLine(String line, List<String> keywords) {
+        int nul = line.indexOf('\0');
+        if (nul <= 0) {
+            return null;
+        }
+        int colon = line.indexOf(':', nul + 1);
+        if (colon < 0) {
+            return null;
+        }
+        int lineNumber;
+        try {
+            lineNumber = Integer.parseInt(line.substring(nul + 1, colon));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+
+        String content = line.substring(colon + 1);
+        LogMatch match = new LogMatch();
+        match.setFileName(line.substring(0, nul));
+        match.setLineNumber(lineNumber);
+        match.setMatchedLine(content);
+        match.setTimestamp(extractTimestamp(content));
+        match.setKeyword(detectKeyword(content, keywords));
+        match.setContextBefore(List.of());
+        match.setContextAfter(List.of());
+        return match;
+    }
+
+    private static String detectKeyword(String content, List<String> keywords) {
+        String lower = content.toLowerCase();
+        for (String kw : keywords) {
+            if (lower.contains(kw.toLowerCase())) {
+                return kw;
+            }
+        }
+        return keywords.get(0);
+    }
+
+    /** Fills contextBefore/contextAfter by streaming each matched file once. */
+    private void attachContext(List<LogMatch> matches) {
+        Map<String, List<LogMatch>> byFile = matches.stream()
+                .collect(Collectors.groupingBy(LogMatch::getFileName));
+        byFile.forEach((file, fileMatches) -> {
+            try {
+                fillContext(Paths.get(file), fileMatches);
+            } catch (IOException e) {
+                logger.debug("Could not read context for {}: {}", file, e.getMessage());
+            }
+        });
+    }
+
+    static void fillContext(Path file, List<LogMatch> fileMatches) throws IOException {
+        List<LogMatch> limited = fileMatches.size() > MAX_CONTEXT_MATCHES_PER_FILE
+                ? fileMatches.subList(0, MAX_CONTEXT_MATCHES_PER_FILE) : fileMatches;
+
+        Set<Integer> needed = new HashSet<>();
+        int maxLine = 0;
+        for (LogMatch m : limited) {
+            for (int i = Math.max(1, m.getLineNumber() - CONTEXT_LINES); i <= m.getLineNumber() + CONTEXT_LINES; i++) {
+                needed.add(i);
+            }
+            maxLine = Math.max(maxLine, m.getLineNumber() + CONTEXT_LINES);
+        }
+
+        Map<Integer, String> lines = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                Files.newInputStream(file),
+                StandardCharsets.UTF_8.newDecoder()
+                        .onMalformedInput(CodingErrorAction.REPLACE)
+                        .onUnmappableCharacter(CodingErrorAction.REPLACE)))) {
+            String line;
+            int n = 0;
+            while ((line = reader.readLine()) != null) {
+                n++;
+                if (n > maxLine) {
                     break;
                 }
+                if (needed.contains(n)) {
+                    lines.put(n, line);
+                }
             }
-            
-            if (matchedKeyword == null) {
-                matchedKeyword = keywords.get(0); // fallback
+        }
+
+        for (LogMatch m : limited) {
+            List<String> before = new ArrayList<>();
+            for (int i = Math.max(1, m.getLineNumber() - CONTEXT_LINES); i < m.getLineNumber(); i++) {
+                String l = lines.get(i);
+                if (l != null) {
+                    before.add(l);
+                }
             }
-            
-            LogMatch match = new LogMatch();
-            match.setFileName(fileName);
-            match.setKeyword(matchedKeyword);
-            match.setLineNumber(lineNumber);
-            match.setMatchedLine(matchedLine);
-            
-            // Get context lines (simplified - could be enhanced with more grep options)
-            List<String> contextBefore = new ArrayList<>();
-            List<String> contextAfter = new ArrayList<>();
-            match.setContextBefore(contextBefore);
-            match.setContextAfter(contextAfter);
-            
-            return match;
-            
-        } catch (NumberFormatException e) {
-            logger.debug("Could not parse grep output line: {}", grepLine);
+            List<String> after = new ArrayList<>();
+            for (int i = m.getLineNumber() + 1; i <= m.getLineNumber() + CONTEXT_LINES; i++) {
+                String l = lines.get(i);
+                if (l != null) {
+                    after.add(l);
+                }
+            }
+            m.setContextBefore(before);
+            m.setContextAfter(after);
+        }
+    }
+
+    private static final Pattern TIMESTAMP_PATTERN = Pattern.compile(
+            "\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}:\\d{2}");
+
+    static String extractTimestamp(String line) {
+        if (line == null) {
             return null;
         }
+        Matcher matcher = TIMESTAMP_PATTERN.matcher(line);
+        return matcher.find() ? matcher.group() : null;
     }
 
     public List<LogMatchResultData> getRecentMatches(int hours) {

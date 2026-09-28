@@ -10,9 +10,11 @@ import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.repository.IntegrationRepository;
 import com.fsmonitor.app.repository.ServiceRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,20 +29,22 @@ import java.util.Set;
  */
 @RestController
 @RequestMapping("/api/monitoring-cache")
-@CrossOrigin(origins = "*")
 public class MonitoringCacheController {
-    
-    @Autowired
-    private IntegrationCacheService integrationCacheService;
-    
-    @Autowired
-    private ServiceCacheService serviceCacheService;
-    
-    @Autowired
-    private IntegrationRepository integrationRepository;
-    
-    @Autowired
-    private ServiceRepository serviceRepository;
+
+    private final IntegrationCacheService integrationCacheService;
+    private final ServiceCacheService serviceCacheService;
+    private final IntegrationRepository integrationRepository;
+    private final ServiceRepository serviceRepository;
+
+    public MonitoringCacheController(IntegrationCacheService integrationCacheService,
+                                     ServiceCacheService serviceCacheService,
+                                     IntegrationRepository integrationRepository,
+                                     ServiceRepository serviceRepository) {
+        this.integrationCacheService = integrationCacheService;
+        this.serviceCacheService = serviceCacheService;
+        this.integrationRepository = integrationRepository;
+        this.serviceRepository = serviceRepository;
+    }
     
     /**
      * Get cache statistics for monitoring purposes

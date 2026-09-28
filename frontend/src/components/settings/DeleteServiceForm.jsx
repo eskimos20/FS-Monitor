@@ -69,16 +69,16 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b">
+    <div className="modal-overlay">
+      <div className="modal-panel max-w-2xl">
+        <div className="modal-header">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="modal-title">
               {deleteService ? 'Edit Delete Service' : 'Add Delete Service'}
             </h2>
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-surface-400 hover:text-surface-600"
             >
               <X className="h-6 w-6" />
             </button>
@@ -88,7 +88,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
               <button
                 type="button"
                 onClick={() => setShowCopyModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-medium rounded-lg transition-colors"
+                className="btn-secondary"
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy existing
@@ -99,7 +99,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               Service Name *
             </label>
             <input
@@ -114,7 +114,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               Directory Path *
             </label>
             <div className="flex gap-2">
@@ -137,7 +137,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
                 Browse
               </button>
             </div>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-surface-500">
               Path to the directory where files should be deleted
             </p>
             
@@ -149,9 +149,9 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
                   name="recursive"
                   checked={formData.recursive}
                   onChange={handleChange}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-surface-300 rounded"
                 />
-                <label htmlFor="recursive" className="ml-2 block text-sm text-gray-700">
+                <label htmlFor="recursive" className="ml-2 block text-sm text-surface-700">
                   Delete files in subdirectories recursively
                 </label>
               </div>
@@ -162,7 +162,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
                     type="checkbox"
                     name="deleteEmptyDirectories"
                     id="deleteEmptyDirectories"
-                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-surface-300 rounded"
                     checked={formData.deleteEmptyDirectories}
                     onChange={handleChange}
                   />
@@ -175,7 +175,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               File Types (optional)
             </label>
             <input
@@ -186,7 +186,7 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
               value={formData.fileTypes}
               onChange={handleChange}
             />
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-surface-500">
               Comma-separated file extensions. Leave empty to delete all files.
             </p>
           </div>
@@ -196,17 +196,17 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
               type="checkbox"
               name="cleanupEnabled"
               id="cleanupEnabled"
-              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-surface-300 rounded"
               checked={formData.cleanupEnabled}
               onChange={handleChange}
             />
-            <label htmlFor="cleanupEnabled" className="ml-2 block text-sm text-gray-900">
+            <label htmlFor="cleanupEnabled" className="ml-2 block text-sm text-surface-900">
               Cleanup Enabled
             </label>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               Cleanup Interval *
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -231,13 +231,13 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
                 <option value="DAYS">Days</option>
               </select>
             </div>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-surface-500">
               How often to run the cleanup process
             </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-surface-700 mb-2">
               Delete Files Older Than *
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -263,13 +263,13 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
                 <option value="MONTHS">Months</option>
               </select>
             </div>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-surface-500">
               Files older than this will be deleted
             </p>
           </div>
 
 
-          <div className="flex justify-end space-x-3 pt-4 border-t">
+          <div className="flex justify-end space-x-3 pt-4 border-t border-surface-200">
             <button
               type="button"
               onClick={onCancel}
@@ -298,15 +298,15 @@ const DeleteServiceForm = ({ deleteService, allDeleteServices, onSave, onCancel 
 
       {/* Copy Existing Modal */}
       {showCopyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Copy Existing Delete Service</h3>
-            <p className="text-sm text-gray-600 mb-4">Select a delete service to copy its settings:</p>
+        <div className="modal-overlay z-[60]">
+          <div className="modal-panel max-w-md p-6">
+            <h3 className="text-lg font-semibold text-surface-900 mb-4">Copy Existing Delete Service</h3>
+            <p className="text-sm text-surface-600 mb-4">Select a delete service to copy its settings:</p>
             
             <select
               value={selectedToCopy}
               onChange={(e) => setSelectedToCopy(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent mb-4"
+              className="input-field mb-4"
             >
               <option value="">-- Select Delete Service --</option>
               {allDeleteServices.map((item) => (

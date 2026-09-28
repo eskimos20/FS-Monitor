@@ -1,6 +1,20 @@
 package com.fsmonitor.app.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -75,6 +89,9 @@ public class Integration {
     @Column(name = "notification_sent_at")
     private LocalDateTime notificationSentAt;
 
+    @Column(name = "last_check")
+    private LocalDateTime lastCheck;
+
     @ManyToMany
     @JoinTable(
         name = "integration_file_types",
@@ -119,7 +136,8 @@ public class Integration {
 
     // Helper method for backward compatibility and calculations
     public Long getCheckIntervalMinutes() {
-        return checkIntervalUnit.toMinutes(checkIntervalValue);
+        TimeInterval unit = checkIntervalUnit != null ? checkIntervalUnit : TimeInterval.MINUTES;
+        return unit.toMinutes(checkIntervalValue != null ? checkIntervalValue : 5);
     }
 
     public Integer getThresholdValue() { return thresholdValue; }
@@ -129,7 +147,10 @@ public class Integration {
     public void setThresholdUnit(TimeInterval thresholdUnit) { this.thresholdUnit = thresholdUnit; }
 
     // Computed for backward compatibility
-    public Long getThresholdMinutes() { return thresholdUnit.toMinutes(thresholdValue); }
+    public Long getThresholdMinutes() {
+        TimeInterval unit = thresholdUnit != null ? thresholdUnit : TimeInterval.MINUTES;
+        return unit.toMinutes(thresholdValue != null ? thresholdValue : 15);
+    }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
@@ -139,6 +160,9 @@ public class Integration {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public LocalDateTime getLastCheck() { return lastCheck; }
+    public void setLastCheck(LocalDateTime lastCheck) { this.lastCheck = lastCheck; }
 
     public Boolean getMonitorAllFiles() { return monitorAllFiles; }
     public void setMonitorAllFiles(Boolean monitorAllFiles) { this.monitorAllFiles = monitorAllFiles; }

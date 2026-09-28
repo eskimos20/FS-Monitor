@@ -2,7 +2,6 @@ package com.fsmonitor.app.service;
 
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.repository.IntegrationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,8 +11,11 @@ import java.util.Optional;
 @Service
 public class IntegrationService {
 
-    @Autowired
-    private IntegrationRepository integrationRepository;
+    private final IntegrationRepository integrationRepository;
+
+    public IntegrationService(IntegrationRepository integrationRepository) {
+        this.integrationRepository = integrationRepository;
+    }
 
     @Transactional
     public List<Integration> getAllIntegrations() {

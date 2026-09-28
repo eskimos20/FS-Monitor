@@ -5,27 +5,36 @@ import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.FileMonitoringService;
 import com.fsmonitor.app.service.IntegrationService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/monitoring")
 public class MonitoringController {
 
-    @Autowired
-    private FileMonitoringService fileMonitoringService;
+    private final FileMonitoringService fileMonitoringService;
+    private final IntegrationService integrationService;
+    private final IntegrationCacheService integrationCacheService;
 
-    @Autowired
-    private IntegrationService integrationService;
-
-    @Autowired
-    private IntegrationCacheService integrationCacheService;
+    public MonitoringController(FileMonitoringService fileMonitoringService,
+                                IntegrationService integrationService,
+                                IntegrationCacheService integrationCacheService) {
+        this.fileMonitoringService = fileMonitoringService;
+        this.integrationService = integrationService;
+        this.integrationCacheService = integrationCacheService;
+    }
 
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getMonitoringStatus() {
@@ -49,14 +58,15 @@ public class MonitoringController {
             if (Boolean.TRUE.equals(integration.getIsActive()) && Boolean.TRUE.equals(integration.getMonitoringEnabled())) {
                 IntegrationCache cache = integrationCacheService.getCache(integration.getId());
                 LocalDateTime lastChecked = cache.getLastCheckedAt();
-                long intervalSeconds = integration.getCheckIntervalMinutes() * 60;
+                Long intervalMin = integration.getCheckIntervalMinutes();
+                long intervalSeconds = (intervalMin != null ? intervalMin : 5L) * 60;
                 
                 long secondsUntilIntegrationRun;
                 if (lastChecked == null) {
                     // Never been checked - show the configured interval time
                     secondsUntilIntegrationRun = intervalSeconds;
                 } else {
-                    LocalDateTime nextIntegrationRun = lastChecked.plusMinutes(integration.getCheckIntervalMinutes());
+                    LocalDateTime nextIntegrationRun = lastChecked.plusMinutes(intervalMin != null ? intervalMin : 5L);
                     secondsUntilIntegrationRun = Duration.between(now, nextIntegrationRun).getSeconds();
                     
                     if (secondsUntilIntegrationRun < 0) {
@@ -90,7 +100,7 @@ public class MonitoringController {
         
         Integration integration = integrationOpt.get();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime lastCheck = integration.getUpdatedAt();
+        LocalDateTime lastCheck = integration.getLastCheck();
         
         if (lastCheck == null) {
             // Never been checked, should run immediately
@@ -98,12 +108,13 @@ public class MonitoringController {
                 "integrationId", id,
                 "status", "pending",
                 "secondsUntilNextRun", 0,
-                "lastCheck", null,
+                "lastCheck", "",
                 "nextRun", now.toString()
             ));
         }
         
-        LocalDateTime nextRun = lastCheck.plusMinutes(integration.getCheckIntervalMinutes().longValue());
+        Long intervalMin = integration.getCheckIntervalMinutes();
+        LocalDateTime nextRun = lastCheck.plusMinutes(intervalMin != null ? intervalMin : 5L);
         long secondsUntilNextRun = java.time.Duration.between(now, nextRun).getSeconds();
         
         if (secondsUntilNextRun < 0) {
@@ -118,18 +129,18 @@ public class MonitoringController {
             "secondsUntilNextRun", secondsUntilNextRun,
             "lastCheck", lastCheck.toString(),
             "nextRun", nextRun.toString(),
-            "intervalMinutes", integration.getCheckIntervalMinutes()
+            "intervalMinutes", intervalMin != null ? intervalMin : 5L
         ));
     }
 
     @PostMapping("/integrations/{id}/check-now")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<String> triggerIntegrationCheck(@PathVariable Long id) {
-        try {
-            // This would trigger an immediate check for the specific integration
-            return ResponseEntity.ok("Integration check triggered successfully");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to trigger integration check: " + e.getMessage());
-        }
+        return integrationService.getIntegrationById(id)
+                .map(integration -> {
+                    fileMonitoringService.checkIntegrationNow(integration);
+                    return ResponseEntity.ok("Integration check triggered successfully");
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 }

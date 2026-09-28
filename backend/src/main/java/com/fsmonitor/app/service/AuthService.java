@@ -11,7 +11,7 @@ import com.fsmonitor.app.repository.RoleRepository;
 import com.fsmonitor.app.repository.UserRepository;
 import com.fsmonitor.app.security.JwtTokenProvider;
 import com.fsmonitor.app.security.UserPrincipal;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.fsmonitor.app.util.PasswordPolicy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,20 +23,23 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider tokenProvider;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private RoleRepository roleRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private JwtTokenProvider tokenProvider;
+    public AuthService(AuthenticationManager authenticationManager,
+                       UserRepository userRepository,
+                       RoleRepository roleRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtTokenProvider tokenProvider) {
+        this.authenticationManager = authenticationManager;
+        this.userRepository = userRepository;
+        this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.tokenProvider = tokenProvider;
+    }
 
     @Transactional
     public LoginResponse authenticateUser(LoginRequest loginRequest) {
@@ -66,6 +69,8 @@ public class AuthService {
             throw new RuntimeException("Email Address already in use!");
         }
 
+        PasswordPolicy.validate(signUpRequest.getPassword());
+
         User user = new User();
         user.setUsername(signUpRequest.getUsername());
         user.setEmail(signUpRequest.getEmail());
@@ -88,20 +93,25 @@ public class AuthService {
             throw new RuntimeException("Current password is incorrect");
         }
 
+        PasswordPolicy.validate(passwordChangeRequest.getNewPassword());
+
         user.setPassword(passwordEncoder.encode(passwordChangeRequest.getNewPassword()));
         user.setPasswordChanged(true);
-        
+        // Bump token version: every JWT issued before this change becomes invalid
+        int newTokenVersion = user.getTokenVersion() + 1;
+        user.setTokenVersion(newTokenVersion);
+
         userRepository.save(user);
-        
-        // Generate new JWT token with updated passwordChanged status
+
+        // Generate new JWT token carrying the new token version
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 currentUser.getUsername(),
                 null,
                 currentUser.getAuthorities()
         );
-        
+
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        String newJwt = tokenProvider.generateToken(authentication);
+        String newJwt = tokenProvider.generateToken(authentication, newTokenVersion);
         
         return new LoginResponse(newJwt, true, currentUser.getUsername(), currentUser.getEmail());
     }

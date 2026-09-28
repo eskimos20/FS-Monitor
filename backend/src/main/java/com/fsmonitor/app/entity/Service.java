@@ -1,6 +1,18 @@
 package com.fsmonitor.app.entity;
 
-import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fsmonitor.app.util.EncryptedStringConverter;
+import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
@@ -32,11 +44,15 @@ public class Service {
 
     private String username;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     @Column(name = "share_path")
     private String sharePath;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     @Column(name = "private_key", columnDefinition = "TEXT")
     private String privateKey;
 
@@ -60,6 +76,15 @@ public class Service {
 
     @Column(name = "last_error")
     private String lastError;
+
+    @Column(name = "notification_sent")
+    private Boolean notificationSent = false;
+
+    @Column(name = "notification_sent_at")
+    private LocalDateTime notificationSentAt;
+
+    @Column(name = "last_check")
+    private LocalDateTime lastCheck;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -180,6 +205,18 @@ public class Service {
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
 
+    /** Exposes whether a password is stored without revealing it. */
+    @JsonProperty("passwordSet")
+    public boolean isPasswordSet() {
+        return password != null && !password.isEmpty();
+    }
+
+    /** Exposes whether a private key is stored without revealing it. */
+    @JsonProperty("privateKeySet")
+    public boolean isPrivateKeySet() {
+        return privateKey != null && !privateKey.isEmpty();
+    }
+
     public String getSharePath() { return sharePath; }
     public void setSharePath(String sharePath) { this.sharePath = sharePath; }
 
@@ -212,4 +249,13 @@ public class Service {
 
     public Integer getActiveEndHour() { return activeEndHour; }
     public void setActiveEndHour(Integer activeEndHour) { this.activeEndHour = activeEndHour; }
+
+    public Boolean getNotificationSent() { return notificationSent; }
+    public void setNotificationSent(Boolean notificationSent) { this.notificationSent = notificationSent; }
+
+    public LocalDateTime getNotificationSentAt() { return notificationSentAt; }
+    public void setNotificationSentAt(LocalDateTime notificationSentAt) { this.notificationSentAt = notificationSentAt; }
+
+    public LocalDateTime getLastCheck() { return lastCheck; }
+    public void setLastCheck(LocalDateTime lastCheck) { this.lastCheck = lastCheck; }
 }

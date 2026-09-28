@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import api, { logConfigAPI } from '../api/axios';
+import { usePolling } from './usePolling';
 
 export const useLogConfigs = (refreshInterval = null) => {
   const [logConfigs, setLogConfigs] = useState([]);
@@ -19,15 +20,7 @@ export const useLogConfigs = (refreshInterval = null) => {
     }
   }, []);
 
-  useEffect(() => {
-    fetchLogConfigs();
-    
-    // Set up periodic refresh if interval is provided
-    if (refreshInterval && refreshInterval > 0) {
-      const interval = setInterval(fetchLogConfigs, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [fetchLogConfigs, refreshInterval]);
+  usePolling(fetchLogConfigs, refreshInterval);
 
   const createLogConfig = async (data) => {
     try {

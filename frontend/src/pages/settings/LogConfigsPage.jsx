@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, Edit, Trash2, Power, FileText, AlertCircle } from 'lucide-react';
+import { Plus, FileText, AlertCircle, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useLogConfigs } from '../../hooks/useLogConfigs';
 import LogConfigForm from '../../components/settings/LogConfigForm';
+import PageHeader from '../../components/ui/PageHeader';
+import EmptyState from '../../components/ui/EmptyState';
+import IconButton from '../../components/ui/IconButton';
+import Toggle from '../../components/ui/Toggle';
+import DetailItem from '../../components/ui/DetailItem';
 
 const LogConfigsPage = () => {
   const { logConfigs, loading, error, createLogConfig, updateLogConfig, deleteLogConfig, toggleLogConfig } = useLogConfigs(60000);
@@ -52,106 +57,77 @@ const LogConfigsPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-500" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Log Configurations</h1>
-          <p className="text-gray-600">Configure log file monitoring and keyword searches</p>
-        </div>
-        <button onClick={handleCreate} className="btn-primary">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Log Configuration
-        </button>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Log Configurations"
+        subtitle="Configure log file monitoring and keyword searches"
+        actions={
+          <button onClick={handleCreate} className="btn-primary">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Add Log Configuration
+          </button>
+        }
+      />
 
-      {/* Error Message */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md flex items-center">
-          <AlertCircle className="h-5 w-5 mr-2" />
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Log Configs List */}
       {logConfigs.length === 0 ? (
         <div className="card">
-          <div className="text-center py-12">
-            <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Log Configurations</h3>
-            <p className="text-gray-500 mb-4">
-              Get started by adding your first log configuration
-            </p>
-            <button onClick={handleCreate} className="btn-primary">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Log Configuration
-            </button>
-          </div>
+          <EmptyState
+            icon={FileText}
+            title="No log configurations"
+            description="Get started by adding your first log configuration."
+            action={
+              <button onClick={handleCreate} className="btn-primary">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add Log Configuration
+              </button>
+            }
+          />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
+        <div className="space-y-3">
           {logConfigs.map((config) => (
-            <div key={config.id} className="card">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{config.name}</h3>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div>
-                      <span className="font-medium">Path:</span> {config.path}
-                    </div>
-                    <div>
-                      <span className="font-medium">File Types:</span> {config.fileTypes}
-                    </div>
-                    <div>
-                      <span className="font-medium">Keywords:</span>{' '}
-                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+            <div key={config.id} className="card card-hover !p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <h3 className="section-title mb-3">{config.name}</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
+                    <DetailItem label="Path">
+                      <span className="font-mono text-xs break-all">{config.path}</span>
+                    </DetailItem>
+                    <DetailItem label="File Types">
+                      <span className="font-mono text-xs">{config.fileTypes}</span>
+                    </DetailItem>
+                    <DetailItem label="Keywords">
+                      <span className="font-mono text-xs bg-surface-100 px-1.5 py-0.5 rounded break-all">
                         {config.keywords}
                       </span>
-                    </div>
-                    {config.lastCheck && (
-                      <div className="text-xs text-gray-500">
-                        Last checked: {new Date(config.lastCheck).toLocaleString()}
-                      </div>
-                    )}
+                    </DetailItem>
                   </div>
+                  {config.lastCheck && (
+                    <p className="mt-3 text-xs text-surface-400">
+                      Last checked: {new Date(config.lastCheck).toLocaleString()}
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex items-center space-x-2 ml-4">
-                  <button
-                    onClick={() => handleToggle(config.id)}
-                    className={`p-2 rounded-md ${
-                      config.active
-                        ? 'text-green-600 hover:bg-green-50'
-                        : 'text-gray-400 hover:bg-gray-50'
-                    }`}
-                    title="Toggle Status"
-                  >
-                    <Power className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => handleEdit(config)}
-                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
-                    title="Edit"
-                  >
-                    <Edit className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => setDeleteConfirm(config.id)}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                    title="Delete"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Toggle checked={config.active} onChange={() => handleToggle(config.id)} />
+                  <IconButton icon={Pencil} onClick={() => handleEdit(config)} title="Edit" variant="primary" />
+                  <IconButton icon={Trash2} onClick={() => setDeleteConfirm(config.id)} title="Delete" variant="danger" />
                 </div>
               </div>
             </div>
@@ -159,7 +135,6 @@ const LogConfigsPage = () => {
         </div>
       )}
 
-      {/* Form Modal */}
       {showForm && (
         <LogConfigForm
           logConfig={editingConfig}
@@ -171,25 +146,18 @@ const LogConfigsPage = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Confirm Delete</h3>
-            <p className="text-gray-600 mb-6">
+        <div className="modal-overlay">
+          <div className="modal-panel max-w-md p-6">
+            <h3 className="modal-title mb-3">Confirm Delete</h3>
+            <p className="text-sm text-surface-600 mb-6">
               Are you sure you want to delete this log configuration? This action cannot be undone.
             </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="btn-secondary"
-              >
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">
                 Cancel
               </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-              >
+              <button onClick={() => handleDelete(deleteConfirm)} className="btn-danger">
                 Delete
               </button>
             </div>

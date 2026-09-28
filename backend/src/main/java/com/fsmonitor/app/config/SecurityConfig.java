@@ -1,10 +1,11 @@
 package com.fsmonitor.app.config;
 
 import com.fsmonitor.app.security.JwtAuthenticationFilter;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -14,20 +15,29 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final List<String> allowedOrigins;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          @Value("${cors.allowed-origins:http://localhost:8088,http://localhost:3000,http://localhost:5173}")
+                          List<String> allowedOrigins) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.allowedOrigins = allowedOrigins;
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -42,33 +52,51 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // Stateless JWT API - CSRF protection is not required
                 .csrf(csrf -> csrf.disable())
+                .headers(headers -> headers
+                        .contentTypeOptions(cto -> {})
+                        // sameOrigin still blocks cross-origin clickjacking while
+                        // allowing the H2 console frameset in development
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .referrerPolicy(ref -> ref.policy(
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.SAME_ORIGIN))
+                        .httpStrictTransportSecurity(hsts -> hsts.disable()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authz -> authz
                         // Public endpoints
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/public/**").permitAll()
-                        .requestMatchers("/api/file-browser/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/api/version").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        // H2 console is only enabled outside the production profile
+                        // and is bound to localhost (web-allow-others: false)
+                        .requestMatchers("/h2-console/**").permitAll()
                         // Static resources (frontend) - Allow all routes for React Router
-                        .requestMatchers("/", "/index.html", "/login", "/dashboard", "/settings", "/assets/**", "/favicon.ico", "/vite.svg", "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
-                        // API endpoints
+                        .requestMatchers("/", "/index.html", "/login", "/change-password",
+                                "/dashboard", "/settings", "/settings/**",
+                                "/assets/**", "/favicon.ico", "/vite.svg",
+                                "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
+                        // User registration restricted to administrators
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").hasRole("ADMIN")
+                        // File browser exposes the server filesystem - administrators only
+                        .requestMatchers("/api/file-browser/**").hasRole("ADMIN")
+                        // Read-only monitoring data for any authenticated user,
+                        // mutations restricted to administrators
                         .requestMatchers(HttpMethod.GET, "/api/integrations/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/integrations/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/integrations/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/integrations/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/file-types/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/file-types/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/file-types/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/file-types/**").hasRole("ADMIN")
-                        .requestMatchers("/api/mail-config/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/storage-configs/**").authenticated()
-                        .requestMatchers(HttpMethod.POST, "/api/storage-configs/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/storage-configs/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/storage-configs/**").hasRole("ADMIN")
-                        // App settings - GET is public, POST requires ADMIN
-                        .requestMatchers(HttpMethod.GET, "/api/app-settings").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/app-settings").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/app-settings").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/log-configs/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/delete-services/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/services/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/monitoring/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/monitoring-cache/**").authenticated()
+                        // Process list can leak secrets via command-line args - admin only
+                        .requestMatchers("/api/system/**").hasRole("ADMIN")
+                        // Everything else under /api requires authentication;
+                        // mutating endpoints additionally enforce ADMIN via @PreAuthorize
                         .anyRequest().authenticated()
                 );
 
@@ -80,13 +108,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type"));
+        configuration.setAllowedOrigins(allowedOrigins);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/api/**", configuration);
         return source;
     }
 }

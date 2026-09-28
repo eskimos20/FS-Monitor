@@ -1,21 +1,24 @@
 application:
-  version: 1.4.0
+  version: @project.version@
 
 spring:
   application:
     name: fs-monitor-backend
-  
+
   datasource:
-    url: jdbc:h2:file:./data/fsmonitor;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
+    url: jdbc:h2:file:${FS_MONITOR_DATA_DIR:./data}/fsmonitor;DB_CLOSE_ON_EXIT=FALSE;AUTO_RECONNECT=TRUE
     driver-class-name: org.h2.Driver
-    username: sa
-    password: password
-    
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:password}
+
   h2:
     console:
-      enabled: true
+      # Dev convenience - disabled in the production profile
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
-      
+      settings:
+        web-allow-others: false
+
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
@@ -24,34 +27,67 @@ spring:
     properties:
       hibernate:
         format_sql: false
-        
+
   sql:
     init:
       mode: never
-        
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
   mail:
-    host: localhost
-    port: 587
-    username: your-email@example.com
-    password: your-password
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
 
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 
-# Custom port configuration
-port-config:
-  backend-port: ${SERVER_PORT:8080}
-  frontend-port: ${FRONTEND_PORT:3000}
+# FS-Monitor specific settings
+fsmonitor:
+  # Directory for generated secrets and the H2 database file
+  data-dir: ${FS_MONITOR_DATA_DIR:./data}
+  # Optional initial password for the auto-created admin account
+  admin-password: ${FS_MONITOR_ADMIN_PASSWORD:}
+  # Key used for AES-256-GCM encryption of stored credentials.
+  # Generated and persisted in <data-dir>/encryption.key when not set.
+  encryption-key: ${FS_MONITOR_ENCRYPTION_KEY:}
+  # Timeout for external shell commands executed by the monitors
+  command-timeout-seconds: ${FS_MONITOR_COMMAND_TIMEOUT:120}
+  sftp:
+    # OpenSSH known_hosts file for strict SFTP host key verification
+    known-hosts: ${FSMONITOR_SFTP_KNOWNHOSTS:${user.home}/.ssh/known_hosts}
+  security:
+    # Honor X-Forwarded-For for rate limiting; enable only behind a reverse
+    # proxy that overwrites/sanitizes the header
+    trust-forwarded-headers: ${FS_MONITOR_TRUST_FORWARDED_HEADERS:false}
+    login:
+      # After this many consecutive failures a username+IP pair is locked
+      max-attempts: ${FS_MONITOR_LOGIN_MAX_ATTEMPTS:5}
+      # Lockout duration in minutes once the limit is reached
+      lockout-minutes: ${FS_MONITOR_LOGIN_LOCKOUT_MINUTES:15}
 
 jwt:
-  secret: fs-monitor-secret-key-very-long-and-secure-for-hs512-algorithm-requirements-must-be-at-least-64-bytes-long
-  expiration: 86400000 # 24 hours
+  # Secret for signing JWT tokens. Generated and persisted in
+  # <data-dir>/jwt.secret when not set. Set JWT_SECRET explicitly in production.
+  secret: ${JWT_SECRET:}
+  expiration: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8088,http://localhost:3000,http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # Outbound SMTP is optional - a missing mail relay must not fail readiness
+    mail:
+      enabled: false
 
 logging:
   level:

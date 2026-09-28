@@ -1,31 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { systemAPI } from '../api/axios';
+import { usePolling } from './usePolling';
 
 export const useSystemStats = (refreshInterval) => {
   const [systemStats, setSystemStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchSystemStats = async () => {
+  const fetchSystemStats = useCallback(async () => {
     try {
       const response = await systemAPI.getStats();
       setSystemStats(response.data);
       setError('');
     } catch (error) {
       setError('Failed to load system stats');
-      // Error already set in state
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => {
-    fetchSystemStats();
-    
-    const interval = setInterval(fetchSystemStats, refreshInterval);
-    
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+  usePolling(fetchSystemStats, refreshInterval);
 
   return {
     systemStats,
