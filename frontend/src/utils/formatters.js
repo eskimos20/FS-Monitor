@@ -69,7 +69,7 @@ export const formatIntegrationTimer = (integration, integrationTimers) => {
   
   const totalSeconds = integrationTimers[integration.id];
   if (totalSeconds === null || totalSeconds === undefined) return 'Loading...';
-  if (totalSeconds === 0) return '...';
+  if (totalSeconds === 0) return 'Due';
   
   // Calculate time units
   const months = Math.floor(totalSeconds / (30 * 24 * 60 * 60));

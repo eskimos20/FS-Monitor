@@ -63,15 +63,19 @@ public class MonitoringController {
                 
                 long secondsUntilIntegrationRun;
                 if (lastChecked == null) {
-                    // Never been checked - show the configured interval time
-                    secondsUntilIntegrationRun = intervalSeconds;
+                    // Never been checked - will run on the next scheduler pass
+                    secondsUntilIntegrationRun = secondsUntilNextRun;
                 } else {
                     LocalDateTime nextIntegrationRun = lastChecked.plusMinutes(intervalMin != null ? intervalMin : 5L);
-                    secondsUntilIntegrationRun = Duration.between(now, nextIntegrationRun).getSeconds();
-                    
-                    if (secondsUntilIntegrationRun < 0) {
-                        // Due to run, will happen on next scheduler cycle
+                    long secondsUntilDue = Duration.between(now, nextIntegrationRun).getSeconds();
+
+                    // Align to scheduler passes: checks only execute on a pass,
+                    // so the displayed time is the first pass at-or-after the due time
+                    if (secondsUntilDue <= secondsUntilNextRun) {
                         secondsUntilIntegrationRun = secondsUntilNextRun;
+                    } else {
+                        long remainingPasses = (long) Math.ceil((secondsUntilDue - secondsUntilNextRun) / 60.0);
+                        secondsUntilIntegrationRun = secondsUntilNextRun + remainingPasses * 60;
                     }
                 }
                 
@@ -93,7 +97,7 @@ public class MonitoringController {
 
     @GetMapping("/integrations/{id}/status")
     public ResponseEntity<Map<String, Object>> getIntegrationStatus(@PathVariable Long id) {
-        java.util.Optional<Integration> integrationOpt = integrationService.getIntegrationById(id);
+        Optional<Integration> integrationOpt = integrationService.getIntegrationById(id);
         if (integrationOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -116,7 +120,22 @@ public class MonitoringController {
         Long intervalMin = integration.getCheckIntervalMinutes();
         LocalDateTime nextRun = lastCheck.plusMinutes(intervalMin != null ? intervalMin : 5L);
         long secondsUntilNextRun = java.time.Duration.between(now, nextRun).getSeconds();
-        
+
+        // Align to the next scheduler pass - checks only execute at pass boundaries
+        LocalDateTime nextPass = fileMonitoringService.getNextSchedulerRun();
+        if (nextPass != null) {
+            long secondsUntilPass = Duration.between(now, nextPass).getSeconds();
+            if (secondsUntilNextRun <= secondsUntilPass) {
+                secondsUntilNextRun = secondsUntilPass;
+                nextRun = nextPass;
+            } else {
+                long extraPasses = (long) Math.ceil((secondsUntilNextRun - secondsUntilPass) / 60.0);
+                long aligned = secondsUntilPass + extraPasses * 60;
+                nextRun = nextRun.plusSeconds(aligned - secondsUntilNextRun);
+                secondsUntilNextRun = aligned;
+            }
+        }
+
         if (secondsUntilNextRun < 0) {
             // Should have run already
             secondsUntilNextRun = 0;

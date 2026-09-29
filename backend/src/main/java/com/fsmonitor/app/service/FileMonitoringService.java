@@ -47,14 +47,18 @@ public class FileMonitoringService {
     @PostConstruct
     public void initializeIntegrationMonitoring() {
         logger.info("Initializing integration monitoring on startup");
-        // Seed lastCheckedAt from the persisted lastCheck column so a restart
-        // does not trigger an immediate rescan of every integration.
+        // The scheduler fires 60s after startup - seed the countdown state so the
+        // API reports a real schedule instead of a flat 60s estimate until then
+        lastSchedulerRun = LocalDateTime.now();
+        nextSchedulerRun = LocalDateTime.now().plusSeconds(60);
+        // A restart starts a fresh cycle for every integration: intervals count
+        // from startup (countdown shows the full configured interval) and no
+        // rescan storm is triggered.
         try {
+            LocalDateTime startup = LocalDateTime.now();
             for (Integration integration : integrationRepository.findAll()) {
-                if (integration.getLastCheck() != null) {
-                    integrationCacheService.getCache(integration.getId())
-                            .setLastCheckedAt(integration.getLastCheck());
-                }
+                integrationCacheService.getCache(integration.getId())
+                        .setLastCheckedAt(startup);
             }
         } catch (Exception e) {
             logger.warn("Could not seed integration check timestamps: {}", e.getMessage());
@@ -65,6 +69,9 @@ public class FileMonitoringService {
     public void monitorIntegrations() {
         LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         lastSchedulerRun = now;
+        // Estimate next run up-front so the countdown never reads a stale (past)
+        // timestamp while a long scan is in progress; refined to the real value below
+        nextSchedulerRun = now.plusSeconds(60);
 
         logger.debug("Starting file monitoring check...");
 
