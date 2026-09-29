@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # FS-Monitor Build Script
-# Bygger en körbar JAR-fil och rensar byggfilerna
+# Builds an executable JAR file and cleans up build artifacts
 
-set -e  # Avsluta om något kommando misslyckas
+set -e  # Abort on any command failure
 
 echo "🔨 Building FS-Monitor JAR file..."
 
-# Bygg frontend först
+# Build the frontend first
 echo "🎨 Building frontend..."
 cd frontend
 npm install
@@ -15,7 +15,7 @@ rm -rf dist
 npm run build
 cd ..
 
-# Verifiera att frontend-bygget faktiskt producerade filer
+# Verify the frontend build actually produced files
 if [ ! -d "frontend/dist" ] || [ -z "$(ls -A frontend/dist 2>/dev/null)" ]; then
     echo "❌ Frontend build failed or produced an empty dist/ folder. Aborting."
     exit 1
@@ -26,7 +26,7 @@ if [ ! -d "frontend/dist/assets" ] || [ -z "$(ls -A frontend/dist/assets 2>/dev/
     exit 1
 fi
 
-# Kopiera frontend build till backend's static mapp
+# Copy the frontend build into backend's static directory
 echo "📋 Copying frontend to backend static resources..."
 rm -rf backend/src/main/resources/static
 mkdir -p backend/src/main/resources/static
@@ -34,22 +34,22 @@ cp -r frontend/dist/* backend/src/main/resources/static/
 
 echo "✅ Frontend copied to backend static resources ($(find backend/src/main/resources/static -type f | wc -l) files)"
 
-# Gå till backend katalogen
+# Enter the backend directory
 cd backend
 
-# Extrahera version från pom.xml
+# Extract version from pom.xml
 VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
 echo "📌 Building version: $VERSION"
 
-# Kör Maven build för att skapa JAR
+# Run the Maven build to create the JAR
 echo "📦 Running Maven build..."
 mvn clean package -DskipTests
 
-# Kontrollera att JAR-filen skapades
+# Check that the JAR file was created
 if [ -f "target/fs-monitor-backend-${VERSION}.jar" ]; then
     echo "✅ JAR file created successfully"
     
-    # Kopiera JAR-filen till root katalogen med nytt namn
+    # Copy the JAR to the repository root under a fixed name
     echo "📋 Copying JAR to root directory..."
     cp target/fs-monitor-backend-${VERSION}.jar ../FS-Monitor.jar
     
@@ -59,19 +59,19 @@ else
     exit 1
 fi
 
-# Gå tillbaka till root katalogen
+# Return to the repository root
 cd ..
 
-# Rensa byggfilerna
+# Clean up build artifacts
 echo "🧹 Cleaning build files..."
 
-# Rensa backend target katalog
+# Remove the backend target directory
 if [ -d "backend/target" ]; then
     rm -rf backend/target
     echo "✅ Cleaned backend/target"
 fi
 
-# Rensa frontend node_modules (valfritt, kommentera bort om du vill behålla)
+# Optionally remove frontend/node_modules (comment out to keep it)
 if [ -d "frontend/node_modules" ]; then
     echo "🤔 Do you want to clean frontend/node_modules? (y/N)"
     read -r response

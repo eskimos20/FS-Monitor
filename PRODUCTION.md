@@ -1,93 +1,98 @@
-# FS-Monitor — Produktionsguide (RHEL9)
+# FS-Monitor — Production Guide (RHEL9)
 
-FS-Monitor är en Spring Boot + React-applikation som paketeras till en enda
-körbar JAR. Backend serverar frontendstatiken internt — ingen separat
-webbserver krävs.
+FS-Monitor is a Spring Boot + React application packaged as a single
+executable JAR. The backend serves the frontend statically — no separate
+web server is required.
 
-## Krav
+## Requirements
 
-- RHEL9 (eller annan systemd-dist)
+- RHEL9 (or another systemd-based distro)
 - Java 17+: `sudo dnf install java-17-openjdk-headless`
-- En byggd `FS-Monitor.jar` (se `build.sh`)
+- A built `FS-Monitor.jar` (see `build.sh`)
 
 ## Installation (systemd)
 
 ```bash
-# Bygg först på din byggmaskin
-./build.sh            # producerar FS-Monitor.jar i repo-roten
+# Build on your build machine first
+./build.sh            # produces FS-Monitor.jar in the repository root
 
-# Installera på servern
+# Install on the server
 sudo deploy/install.sh /path/to/FS-Monitor.jar
 ```
 
-Installationsprogrammet skapar:
+The installer creates:
 
-| Sökväg | Innehåll |
+| Path | Contents |
 |---|---|
-| `/opt/fs-monitor/fs-monitor.jar` | Applikationen |
-| `/etc/fs-monitor/fs-monitor.env` | Konfiguration (redigera innan start) |
-| `/var/lib/fs-monitor/` | H2-databas + genererade hemligheter |
-| `/etc/systemd/system/fs-monitor.service` | Hårdnad systemd-enhet |
+| `/opt/fs-monitor/fs-monitor.jar` | The application |
+| `/etc/fs-monitor/fs-monitor.env` | Configuration (edit before first start) |
+| `/var/lib/fs-monitor/` | H2 database + generated secrets |
+| `/etc/systemd/system/fs-monitor.service` | Hardened systemd unit |
 
-## Konfiguration
+## Configuration
 
-Alla inställningar görs i `/etc/fs-monitor/fs-monitor.env`:
+All settings live in `/etc/fs-monitor/fs-monitor.env`:
 
 ```ini
-FS_MONITOR_ADMIN_PASSWORD=<välj starkt lösenord>   # första admin-lösenordet
+FS_MONITOR_ADMIN_PASSWORD=<choose a strong password>   # first admin password
 FS_MONITOR_DATA_DIR=/var/lib/fs-monitor
 SERVER_PORT=8085
 SERVER_ADDRESS=0.0.0.0
-CORS_ALLOWED_ORIGINS=http://servern:8085
+CORS_ALLOWED_ORIGINS=http://your-server:8085
 JAVA_OPTS=-Xms256m -Xmx512m
 ```
 
-- `JWT_SECRET` och `FS_MONITOR_ENCRYPTION_KEY` kan lämnas tomma — de
-  genereras automatiskt och lagras med 0600-rättigheter i datakatalogen.
-- `FSMONITOR_SFTP_KNOWNHOSTS` pekar på en `known_hosts`-fil; när den finns
-  körs SFTP-kontroller med strikt host key-verifiering.
-- H2-console är **avstängd** i produktionsprofilen.
+- `JWT_SECRET` and `FS_MONITOR_ENCRYPTION_KEY` may be left empty — they are
+  generated automatically and stored with 0600 permissions in the data
+  directory.
+- `FSMONITOR_SFTP_KNOWNHOSTS` points to a `known_hosts` file; when present,
+  SFTP checks run with strict host key verification.
+- `FS_MONITOR_LOGIN_MAX_ATTEMPTS` / `FS_MONITOR_LOGIN_LOCKOUT_MINUTES`
+  control login throttling (defaults: 5 failures → 15-minute lockout).
+- `FS_MONITOR_TRUST_FORWARDED_HEADERS=true` should only be set when the app
+  sits behind a reverse proxy that sanitizes `X-Forwarded-For`.
+- The H2 console is **disabled** in the production profile.
 
-## Drift
+## Operations
 
 ```bash
 systemctl start fs-monitor
 systemctl status fs-monitor
-journalctl -u fs-monitor -f          # följ loggar
+journalctl -u fs-monitor -f          # follow logs
 systemctl restart fs-monitor
 ```
 
-Hälsokontroll: `curl http://localhost:8085/actuator/health`
+Health check: `curl http://localhost:8085/actuator/health`
 
-### Första inloggningen
+### First login
 
-Logga in med `admin` + lösenordet i `FS_MONITOR_ADMIN_PASSWORD`
-(eller `admin`/`password` om fältet lämnats tomt — byt omedelbart under
-Inställningar → Byt lösenord).
+Log in with `admin` + the password from `FS_MONITOR_ADMIN_PASSWORD`
+(or `admin`/`password` if the variable was left empty — change it
+immediately under Settings → Change password).
 
-### Brandvägg
+### Firewall
 
-Endast om UI:t ska nås från andra värdar:
+Only if the UI should be reachable from other hosts:
 
 ```bash
 firewall-cmd --permanent --add-port=8085/tcp
 firewall-cmd --reload
 ```
 
-Rekommendation: sätt applikationen bakom en reverse proxy (nginx/Apache)
-om den ska exponeras utanför det interna nätet.
+Recommendation: place the application behind a reverse proxy
+(nginx/Apache) if it is exposed beyond the internal network.
 
-## Backup & återställning
+## Backup & restore
 
-All data finns i `FS_MONITOR_DATA_DIR` (standard `/var/lib/fs-monitor`):
+All data lives in `FS_MONITOR_DATA_DIR` (default `/var/lib/fs-monitor`):
 
-- `fsmonitor.mv.db` — H2-databasen (konfigurationer, användare, statusar)
-- `jwt.secret`, `encryption.key` — genererade hemligheter
+- `fsmonitor.mv.db` — the H2 database (configurations, users, statuses)
+- `jwt.secret`, `encryption.key` — generated secrets
 
-### Säker backup (rekommenderad rutin)
+### Safe backup (recommended routine)
 
-Kopiera **aldrig** `fsmonitor.mv.db` medan tjänsten körs — en filkopia av en
-live-databas kan vara inkonsekvent. Stoppa tjänsten först:
+**Never** copy `fsmonitor.mv.db` while the service is running — a file copy
+of a live database can be inconsistent. Stop the service first:
 
 ```bash
 systemctl stop fs-monitor
@@ -98,7 +103,7 @@ sudo -u fs-monitor tar czf \
 systemctl start fs-monitor
 ```
 
-Lägg in som ett cron-jobb eller systemd-timer för daglig körning, t.ex.:
+Schedule it as a cron job or systemd timer for daily runs, e.g.:
 
 ```bash
 # /etc/cron.d/fs-monitor-backup
@@ -107,25 +112,26 @@ Lägg in som ett cron-jobb eller systemd-timer för daglig körning, t.ex.:
   systemctl start fs-monitor
 ```
 
-Behåll t.ex. 14 dygns kopior lokalt och synka dem till en annan host
-(`rsync`, `scp`) — databasen är ofta bara några MB.
+Keep e.g. 14 days of copies locally and sync them to another host
+(`rsync`, `scp`) — the database is usually only a few MB.
 
-### Återställning
+### Restore
 
 ```bash
 systemctl stop fs-monitor
 rm -rf /var/lib/fs-monitor
 tar xzf /var/backups/fs-monitor/fs-monitor-YYYY-MM-DD.tar.gz -C /var/lib
 chown -R fs-monitor:fs-monitor /var/lib/fs-monitor
-restorecon -Rv /var/lib/fs-monitor   # om SELinux enforcing
+restorecon -Rv /var/lib/fs-monitor   # if SELinux is enforcing
 systemctl start fs-monitor
 ```
 
-**Viktigt:** återställ alltid `encryption.key` tillsammans med databasen —
-utan nyckeln kan lagrade tjänste-/mail-credentials inte dekrypteras. Saknas
-`jwt.secret` genereras en ny och alla befintliga sessioner ogiltigförklaras.
+**Important:** always restore `encryption.key` together with the database —
+without the key, stored service/mail credentials cannot be decrypted. If
+`jwt.secret` is missing, a new one is generated and all existing sessions
+are invalidated.
 
-## Uppgradering
+## Upgrading
 
 ```bash
 systemctl stop fs-monitor
@@ -133,18 +139,21 @@ sudo install -m 644 /path/to/new.jar /opt/fs-monitor/fs-monitor.jar
 systemctl start fs-monitor
 ```
 
-## Utan systemd
+## Without systemd
 
-`run-production.sh` kör JAR-filen direkt med produktionsprofilen:
+`run-production.sh` runs the JAR directly with the production profile:
 
 ```bash
 SERVER_PORT=8085 FS_MONITOR_DATA_DIR=/var/lib/fs-monitor ./run-production.sh
 ```
 
-## Säkerhetsanteckningar
+## Security notes
 
-- API:t kräver JWT-autentisering; registrering och filläsaren är
-  admin-endpoints.
-- Tjänste-/mail-credentials lagras AES-256-GCM-krypterade i databasen och
-  exponeras aldrig i API-svar.
-- HTTP används internt — använd reverse proxy med TLS för extern åtkomst.
+- The API requires JWT authentication; user registration and the file
+  browser are admin-only endpoints.
+- Service/mail credentials are stored AES-256-GCM-encrypted in the
+  database and are never exposed in API responses.
+- Login attempts are rate-limited; changing a password invalidates all
+  previously issued tokens.
+- HTTP is used internally — front with a reverse proxy and TLS for
+  external access.

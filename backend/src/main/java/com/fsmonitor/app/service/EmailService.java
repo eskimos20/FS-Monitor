@@ -64,7 +64,7 @@ public class EmailService {
             props.put("mail.smtp.timeout", "10000");
             props.put("mail.smtp.writetimeout", "10000");
             
-            // Set UTF-8 encoding for Swedish characters (åäö)
+            // Use UTF-8 so non-ASCII characters survive transport
             props.put("mail.mime.charset", "UTF-8");
             
             // Create MimeMessage with proper encoding (matching working implementation)
