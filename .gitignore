@@ -197,7 +197,6 @@ application-*.properties
 # Git
 
 # Documentation
-README.md
 CHANGELOG.md
 docs/
 
