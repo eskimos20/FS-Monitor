@@ -16,9 +16,20 @@ const MailConfigSettings = ({ mailConfig, onSave }) => {
     password: ''
   });
 
+  // The API never returns the password; keep it blank so an empty field
+  // preserves the stored password on save.
+  const toFormData = (config) => ({
+    host: config?.host ?? '',
+    port: config?.port ?? 587,
+    fromEmail: config?.fromEmail ?? '',
+    toEmail: config?.toEmail ?? '',
+    username: config?.username ?? '',
+    password: ''
+  });
+
   useEffect(() => {
     if (mailConfig) {
-      setFormData(mailConfig);
+      setFormData(toFormData(mailConfig));
       setUseAuthentication(!!mailConfig.username);
     }
   }, [mailConfig]);
@@ -38,7 +49,7 @@ const MailConfigSettings = ({ mailConfig, onSave }) => {
 
   const handleCancel = () => {
     if (mailConfig) {
-      setFormData(mailConfig);
+      setFormData(toFormData(mailConfig));
       setUseAuthentication(!!mailConfig.username);
     }
     setIsEditing(false);
