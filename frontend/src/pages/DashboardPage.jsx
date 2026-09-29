@@ -31,12 +31,12 @@ const DashboardPage = () => {
   const { user } = useAuth();
 
   const { refreshIntervalMs } = useAppSettings();
-  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(60000);
-  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(60000);
+  const { integrations, loading: integrationsLoading, error: integrationsError, toggleIntegration } = useIntegrations(refreshIntervalMs);
+  const { services, loading: servicesLoading, error: servicesError, toggleService } = useServices(refreshIntervalMs);
   const { systemStats } = useSystemStats(refreshIntervalMs);
   const { secondsUntilNextRun, integrationTimers } = useMonitoringStatus(60000, refreshIntervalMs);
-  const { logConfigs } = useLogConfigs(60000);
-  const { deleteServices, loading: deleteServicesLoading, error: deleteServicesError, toggleDeleteService } = useDeleteServices(60000);
+  const { logConfigs } = useLogConfigs(refreshIntervalMs);
+  const { deleteServices, loading: deleteServicesLoading, error: deleteServicesError, toggleDeleteService } = useDeleteServices(refreshIntervalMs);
 
   return (
     <div className="space-y-6 animate-fade-in">
