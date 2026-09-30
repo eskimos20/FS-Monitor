@@ -25,4 +25,10 @@ public interface IntegrationRepository extends JpaRepository<Integration, Long> 
     @Transactional
     @Query("UPDATE Integration i SET i.lastCheck = :checkedAt WHERE i.id = :id")
     void updateLastCheck(Long id, LocalDateTime checkedAt);
+
+    /** Bulk update - does not trigger @PreUpdate, so updatedAt is untouched. */
+    @Modifying
+    @Transactional
+    @Query("UPDATE Integration i SET i.lastFileFound = :fileFound, i.lastFileName = :fileName WHERE i.id = :id")
+    void updateLastFileFound(Long id, LocalDateTime fileFound, String fileName);
 }

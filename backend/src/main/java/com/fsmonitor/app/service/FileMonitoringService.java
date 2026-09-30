@@ -47,18 +47,29 @@ public class FileMonitoringService {
     @PostConstruct
     public void initializeIntegrationMonitoring() {
         logger.info("Initializing integration monitoring on startup");
+        // Single second-truncated timestamp for all seeds: the countdown grid
+        // and the check-due anchor must share the same second component or a
+        // due time lands just after a pass and the timer shows interval+1min.
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
         // The scheduler fires 60s after startup - seed the countdown state so the
         // API reports a real schedule instead of a flat 60s estimate until then
-        lastSchedulerRun = LocalDateTime.now();
-        nextSchedulerRun = LocalDateTime.now().plusSeconds(60);
+        lastSchedulerRun = now;
+        nextSchedulerRun = now.plusSeconds(60);
         // A restart starts a fresh cycle for every integration: intervals count
         // from startup (countdown shows the full configured interval) and no
         // rescan storm is triggered.
         try {
-            LocalDateTime startup = LocalDateTime.now();
+            LocalDateTime startup = now;
             for (Integration integration : integrationRepository.findAll()) {
-                integrationCacheService.getCache(integration.getId())
-                        .setLastCheckedAt(startup);
+                IntegrationCache cache = integrationCacheService.getCache(integration.getId());
+                cache.setLastCheckedAt(startup);
+                // Restore the last known file so the dashboard shows the real
+                // pre-restart state instead of "No files found" until the
+                // first scan of this run completes.
+                if (integration.getLastFileFound() != null) {
+                    cache.setLastFileFound(integration.getLastFileFound());
+                    cache.setLastFileName(integration.getLastFileName());
+                }
             }
         } catch (Exception e) {
             logger.warn("Could not seed integration check timestamps: {}", e.getMessage());
@@ -97,9 +108,12 @@ public class FileMonitoringService {
             }
         }
 
-        // Set next run AFTER all integrations have been checked
-        nextSchedulerRun = LocalDateTime.now()
-                .truncatedTo(java.time.temporal.ChronoUnit.SECONDS).plusSeconds(60);
+        // Anchor to this pass's start-time (the same truncated 'now' that
+        // shouldCheckIntegration compares against), not the pass end-time -
+        // otherwise the estimated pass grid drifts by the scan duration and
+        // due-times can land just after a grid point, adding a phantom minute
+        // to the displayed countdown.
+        nextSchedulerRun = now.plusSeconds(60);
 
         logger.debug("File monitoring check completed for {} integrations", activeIntegrations.size());
     }
@@ -128,7 +142,11 @@ public class FileMonitoringService {
         Long intervalMin = integration.getCheckIntervalMinutes();
         LocalDateTime nextCheck = lastCheck.truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
             .plusMinutes(intervalMin != null ? intervalMin : 5L);
-        return !now.isBefore(nextCheck);
+        if (now.isBefore(nextCheck)) {
+            logger.debug("Integration {} not due for check (next due {})", integration.getName(), nextCheck);
+            return false;
+        }
+        return true;
     }
 
     private void checkIntegration(Integration integration, LocalDateTime now) {
@@ -162,8 +180,17 @@ public class FileMonitoringService {
                 try {
                     LocalDateTime fileModifiedTime = LocalDateTime.ofInstant(
                             Files.getLastModifiedTime(latestFile).toInstant(), ZoneId.systemDefault());
+                    String fileName = latestFile.toAbsolutePath().toString();
                     cache.setLastFileFound(fileModifiedTime);
-                    cache.setLastFileName(latestFile.toAbsolutePath().toString());
+                    cache.setLastFileName(fileName);
+                    // Persist so the last-known file survives restarts
+                    try {
+                        integrationRepository.updateLastFileFound(
+                                integration.getId(), fileModifiedTime, fileName);
+                    } catch (Exception e) {
+                        logger.debug("Could not persist lastFileFound for integration {}: {}",
+                                integration.getId(), e.getMessage());
+                    }
                 } catch (IOException e) {
                     logger.warn("Could not read modification time of {}: {}", latestFile, e.getMessage());
                 }

@@ -92,6 +92,14 @@ public class Integration {
     @Column(name = "last_check")
     private LocalDateTime lastCheck;
 
+    /** Last time a matching file was seen - persisted so the dashboard can
+     *  show the last known state immediately after a restart. */
+    @Column(name = "last_file_found")
+    private LocalDateTime lastFileFound;
+
+    @Column(name = "last_file_name", length = 1024)
+    private String lastFileName;
+
     @ManyToMany
     @JoinTable(
         name = "integration_file_types",
@@ -163,6 +171,12 @@ public class Integration {
 
     public LocalDateTime getLastCheck() { return lastCheck; }
     public void setLastCheck(LocalDateTime lastCheck) { this.lastCheck = lastCheck; }
+
+    public LocalDateTime getLastFileFound() { return lastFileFound; }
+    public void setLastFileFound(LocalDateTime lastFileFound) { this.lastFileFound = lastFileFound; }
+
+    public String getLastFileName() { return lastFileName; }
+    public void setLastFileName(String lastFileName) { this.lastFileName = lastFileName; }
 
     public Boolean getMonitorAllFiles() { return monitorAllFiles; }
     public void setMonitorAllFiles(Boolean monitorAllFiles) { this.monitorAllFiles = monitorAllFiles; }

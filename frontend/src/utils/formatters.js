@@ -66,10 +66,22 @@ export const formatIntegrationTimer = (integration, integrationTimers) => {
   if (!integration || !integration.isActive || !integration.monitoringEnabled) {
     return '--';
   }
-  
-  const totalSeconds = integrationTimers[integration.id];
-  if (totalSeconds === null || totalSeconds === undefined) return 'Loading...';
+
+  const timer = integrationTimers[integration.id];
+  if (timer === null || timer === undefined) return 'Loading...';
+  const totalSeconds = timer.seconds;
   if (totalSeconds === 0) return 'Due';
+
+  // Schedule-blocked: the counter does not tick - show when the window re-opens
+  if (timer.outsideSchedule) {
+    const resume = new Date(Date.now() + totalSeconds * 1000);
+    const sameDay = resume.toDateString() === new Date().toDateString();
+    const time = resume.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const when = sameDay
+      ? time
+      : `${resume.toLocaleDateString([], { weekday: 'short' })} ${time}`;
+    return `Outside schedule · resumes ${when}`;
+  }
   
   // Calculate time units
   const months = Math.floor(totalSeconds / (30 * 24 * 60 * 60));

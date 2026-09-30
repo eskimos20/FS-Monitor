@@ -28,7 +28,10 @@ export const useMonitoringStatus = (refreshInterval, settingsIntervalMs = null) 
 
       const newTimers = {};
       for (const [id, timerData] of Object.entries(backendTimers)) {
-        newTimers[id] = timerData.secondsUntilNextRun;
+        newTimers[id] = {
+          seconds: timerData.secondsUntilNextRun,
+          outsideSchedule: Boolean(timerData.outsideSchedule)
+        };
       }
       globalTimerState.integrationTimers = newTimers;
 
@@ -47,8 +50,8 @@ export const useMonitoringStatus = (refreshInterval, settingsIntervalMs = null) 
     if (globalTimerState.secondsUntilNextRun !== null && elapsedSeconds > 0) {
       const adjustedSeconds = Math.max(0, globalTimerState.secondsUntilNextRun - elapsedSeconds);
       const adjustedTimers = {};
-      for (const [id, seconds] of Object.entries(globalTimerState.integrationTimers)) {
-        adjustedTimers[id] = Math.max(0, seconds - elapsedSeconds);
+      for (const [id, timer] of Object.entries(globalTimerState.integrationTimers)) {
+        adjustedTimers[id] = { ...timer, seconds: Math.max(0, timer.seconds - elapsedSeconds) };
       }
       setSecondsUntilNextRun(adjustedSeconds);
       setIntegrationTimers(adjustedTimers);
@@ -70,8 +73,8 @@ export const useMonitoringStatus = (refreshInterval, settingsIntervalMs = null) 
 
       setIntegrationTimers(prev => {
         const newTimers = {};
-        for (const [id, seconds] of Object.entries(prev)) {
-          newTimers[id] = Math.max(0, seconds - 1);
+        for (const [id, timer] of Object.entries(prev)) {
+          newTimers[id] = { ...timer, seconds: Math.max(0, timer.seconds - 1) };
         }
         globalTimerState.integrationTimers = newTimers;
         return newTimers;

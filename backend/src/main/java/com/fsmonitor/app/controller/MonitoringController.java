@@ -5,6 +5,7 @@ import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.service.FileMonitoringService;
 import com.fsmonitor.app.service.IntegrationService;
+import com.fsmonitor.app.util.ScheduleUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,8 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/monitoring")
 public class MonitoringController {
+
+    private static final long SCHEDULE_SCAN_CAP_MINUTES = 8L * 24 * 60;
 
     private final FileMonitoringService fileMonitoringService;
     private final IntegrationService integrationService;
@@ -60,29 +63,21 @@ public class MonitoringController {
                 LocalDateTime lastChecked = cache.getLastCheckedAt();
                 Long intervalMin = integration.getCheckIntervalMinutes();
                 long intervalSeconds = (intervalMin != null ? intervalMin : 5L) * 60;
-                
-                long secondsUntilIntegrationRun;
-                if (lastChecked == null) {
-                    // Never been checked - will run on the next scheduler pass
-                    secondsUntilIntegrationRun = secondsUntilNextRun;
-                } else {
-                    LocalDateTime nextIntegrationRun = lastChecked.plusMinutes(intervalMin != null ? intervalMin : 5L);
-                    long secondsUntilDue = Duration.between(now, nextIntegrationRun).getSeconds();
 
-                    // Align to scheduler passes: checks only execute on a pass,
-                    // so the displayed time is the first pass at-or-after the due time
-                    if (secondsUntilDue <= secondsUntilNextRun) {
-                        secondsUntilIntegrationRun = secondsUntilNextRun;
-                    } else {
-                        long remainingPasses = (long) Math.ceil((secondsUntilDue - secondsUntilNextRun) / 60.0);
-                        secondsUntilIntegrationRun = secondsUntilNextRun + remainingPasses * 60;
-                    }
-                }
-                
+                LocalDateTime eligiblePass = nextEligiblePass(integration, lastChecked, nextRun, now);
+                long secondsUntilIntegrationRun = eligiblePass != null
+                        ? Duration.between(now, eligiblePass).getSeconds()
+                        : secondsUntilNextRun;
+                boolean outsideSchedule = Boolean.TRUE.equals(integration.getScheduleEnabled())
+                        && !ScheduleUtil.isWithinSchedule(integration.getActiveDays(),
+                                integration.getActiveStartHour(),
+                                integration.getActiveEndHour(), now);
+
                 integrationTimers.put(String.valueOf(integration.getId()), Map.of(
                     "secondsUntilNextRun", secondsUntilIntegrationRun,
                     "intervalSeconds", intervalSeconds,
-                    "lastCheckedAt", lastChecked != null ? lastChecked.toString() : ""
+                    "lastCheckedAt", lastChecked != null ? lastChecked.toString() : "",
+                    "outsideSchedule", outsideSchedule
                 ));
             }
         }
@@ -104,52 +99,51 @@ public class MonitoringController {
         
         Integration integration = integrationOpt.get();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime lastCheck = integration.getLastCheck();
-        
-        if (lastCheck == null) {
-            // Never been checked, should run immediately
-            return ResponseEntity.ok(Map.of(
-                "integrationId", id,
-                "status", "pending",
-                "secondsUntilNextRun", 0,
-                "lastCheck", "",
-                "nextRun", now.toString()
-            ));
-        }
-        
-        Long intervalMin = integration.getCheckIntervalMinutes();
-        LocalDateTime nextRun = lastCheck.plusMinutes(intervalMin != null ? intervalMin : 5L);
-        long secondsUntilNextRun = java.time.Duration.between(now, nextRun).getSeconds();
-
-        // Align to the next scheduler pass - checks only execute at pass boundaries
+        // Same source the scheduler uses - DB lastCheck is stale after a restart
+        LocalDateTime lastCheck = integrationCacheService.getCache(id).getLastCheckedAt();
         LocalDateTime nextPass = fileMonitoringService.getNextSchedulerRun();
-        if (nextPass != null) {
-            long secondsUntilPass = Duration.between(now, nextPass).getSeconds();
-            if (secondsUntilNextRun <= secondsUntilPass) {
-                secondsUntilNextRun = secondsUntilPass;
-                nextRun = nextPass;
-            } else {
-                long extraPasses = (long) Math.ceil((secondsUntilNextRun - secondsUntilPass) / 60.0);
-                long aligned = secondsUntilPass + extraPasses * 60;
-                nextRun = nextRun.plusSeconds(aligned - secondsUntilNextRun);
-                secondsUntilNextRun = aligned;
-            }
+        Long intervalMin = integration.getCheckIntervalMinutes();
+
+        LocalDateTime eligiblePass = nextEligiblePass(integration, lastCheck, nextPass, now);
+        if (eligiblePass == null) {
+            eligiblePass = nextPass != null ? nextPass : now;
         }
 
-        if (secondsUntilNextRun < 0) {
-            // Should have run already
-            secondsUntilNextRun = 0;
-            nextRun = now;
-        }
-        
         return ResponseEntity.ok(Map.of(
             "integrationId", id,
-            "status", "scheduled",
-            "secondsUntilNextRun", secondsUntilNextRun,
-            "lastCheck", lastCheck.toString(),
-            "nextRun", nextRun.toString(),
+            "status", lastCheck == null ? "pending" : "scheduled",
+            "secondsUntilNextRun", Math.max(0, Duration.between(now, eligiblePass).getSeconds()),
+            "lastCheck", lastCheck != null ? lastCheck.toString() : "",
+            "nextRun", eligiblePass.toString(),
             "intervalMinutes", intervalMin != null ? intervalMin : 5L
         ));
+    }
+
+    /**
+     * Find the first scheduler pass at which a check will actually execute:
+     * the pass must be at-or-after {@code lastCheck + interval} AND inside the
+     * configured schedule (if any). Scans forward pass-by-pass, capped at
+     * {@value #SCHEDULE_SCAN_CAP_MINUTES} minutes - a weekly window always
+     * re-opens within 7 days, so a null result means "no real schedule".
+     */
+    private LocalDateTime nextEligiblePass(Integration integration, LocalDateTime lastChecked,
+                                           LocalDateTime firstPass, LocalDateTime now) {
+        long intervalMin = integration.getCheckIntervalMinutes() != null
+                ? integration.getCheckIntervalMinutes() : 5L;
+        LocalDateTime due = lastChecked != null ? lastChecked.plusMinutes(intervalMin) : now;
+        boolean scheduled = Boolean.TRUE.equals(integration.getScheduleEnabled());
+
+        LocalDateTime pass = firstPass != null ? firstPass : now.plusSeconds(60);
+        for (long i = 0; i <= SCHEDULE_SCAN_CAP_MINUTES; i++) {
+            if (!pass.isBefore(due)
+                    && (!scheduled || ScheduleUtil.isWithinSchedule(
+                            integration.getActiveDays(), integration.getActiveStartHour(),
+                            integration.getActiveEndHour(), pass))) {
+                return pass;
+            }
+            pass = pass.plusMinutes(1);
+        }
+        return null;
     }
 
     @PostMapping("/integrations/{id}/check-now")
