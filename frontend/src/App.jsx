@@ -8,6 +8,12 @@ import Layout from './components/Layout';
 const Login = lazy(() => import('./pages/Login'));
 const ChangePassword = lazy(() => import('./pages/ChangePassword'));
 const Dashboard = lazy(() => import('./pages/DashboardPage'));
+const SystemPage = lazy(() => import('./pages/SystemPage'));
+const FileIntegrationsPage = lazy(() => import('./pages/FileIntegrationsPage'));
+const ServicesPage = lazy(() => import('./pages/ServicesPage'));
+const StoragePage = lazy(() => import('./pages/StoragePage'));
+const DeleteServicesPage = lazy(() => import('./pages/DeleteServicesPage'));
+const LogControlPage = lazy(() => import('./pages/LogControlPage'));
 const Settings = lazy(() => import('./pages/SettingsPage'));
 const LogConfigsPage = lazy(() => import('./pages/settings/LogConfigsPage'));
 
@@ -71,6 +77,24 @@ const AppRoutes = () => {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={
             <Suspense fallback={<RouteLoader />}><Dashboard /></Suspense>
+          } />
+          <Route path="system" element={
+            <Suspense fallback={<RouteLoader />}><SystemPage /></Suspense>
+          } />
+          <Route path="integrations" element={
+            <Suspense fallback={<RouteLoader />}><FileIntegrationsPage /></Suspense>
+          } />
+          <Route path="services" element={
+            <Suspense fallback={<RouteLoader />}><ServicesPage /></Suspense>
+          } />
+          <Route path="storage" element={
+            <Suspense fallback={<RouteLoader />}><StoragePage /></Suspense>
+          } />
+          <Route path="delete-services" element={
+            <Suspense fallback={<RouteLoader />}><DeleteServicesPage /></Suspense>
+          } />
+          <Route path="log-control" element={
+            <Suspense fallback={<RouteLoader />}><LogControlPage /></Suspense>
           } />
           <Route path="settings" element={
             <Suspense fallback={<RouteLoader />}><Settings /></Suspense>

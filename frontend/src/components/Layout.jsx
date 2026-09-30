@@ -3,6 +3,12 @@ import { useAuth } from '../context/AuthContext';
 import { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
+  Cpu,
+  FolderOpen,
+  Server,
+  HardDrive,
+  Trash2,
+  FileSearch,
   Settings,
   LogOut,
   Monitor,
@@ -78,6 +84,12 @@ const Layout = () => {
 
   const navigation = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { to: '/system', icon: Cpu, label: 'System' },
+    { to: '/integrations', icon: FolderOpen, label: 'File Integrations' },
+    { to: '/services', icon: Server, label: 'Services' },
+    { to: '/storage', icon: HardDrive, label: 'Storage' },
+    { to: '/delete-services', icon: Trash2, label: 'Delete Service' },
+    { to: '/log-control', icon: FileSearch, label: 'Log Control' },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ];
 

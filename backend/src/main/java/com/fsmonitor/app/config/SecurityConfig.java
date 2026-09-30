@@ -75,7 +75,9 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         // Static resources (frontend) - Allow all routes for React Router
                         .requestMatchers("/", "/index.html", "/login", "/change-password",
-                                "/dashboard", "/settings", "/settings/**",
+                                "/dashboard", "/system", "/integrations", "/services",
+                                "/storage", "/delete-services", "/log-control",
+                                "/settings", "/settings/**",
                                 "/assets/**", "/favicon.ico", "/vite.svg",
                                 "/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg").permitAll()
                         // User registration restricted to administrators
