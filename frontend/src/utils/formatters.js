@@ -107,3 +107,11 @@ export const formatDateTime = (dateString) => {
   const date = new Date(dateString);
   return date.toLocaleString();
 };
+
+/** Case-insensitive, number-aware sort by name. Pass a getter for nested names. */
+export const sortByName = (items, getName = (item) => item?.name) =>
+  [...(items || [])].sort((a, b) =>
+    (getName(a) || '').localeCompare(getName(b) || '', undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    }));

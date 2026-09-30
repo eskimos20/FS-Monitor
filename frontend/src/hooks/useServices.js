@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import api, { cacheAPI } from '../api/axios';
 import { usePolling } from './usePolling';
+import { sortByName } from '../utils/formatters';
 
 export const useServices = (refreshInterval = null) => {
   const [services, setServices] = useState([]);
@@ -33,7 +34,7 @@ export const useServices = (refreshInterval = null) => {
         lastSuccessfulCheck: statusMap[config.id]?.lastSuccessfulCheck
       }));
       
-      setServices(mergedServices);
+      setServices(sortByName(mergedServices));
       setError('');
     } catch (error) {
       setError('Failed to load services');

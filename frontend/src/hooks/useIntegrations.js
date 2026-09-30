@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { integrationAPI, cacheAPI } from '../api/axios';
 import { usePolling } from './usePolling';
+import { sortByName } from '../utils/formatters';
 
 export const useIntegrations = (refreshInterval = null) => {
   const [integrations, setIntegrations] = useState([]);
@@ -32,7 +33,7 @@ export const useIntegrations = (refreshInterval = null) => {
         lastCheckedAt: statusMap[config.id]?.lastCheckedAt
       }));
       
-      setIntegrations(mergedIntegrations);
+      setIntegrations(sortByName(mergedIntegrations));
       setError('');
     } catch (error) {
       setError('Failed to load integrations');

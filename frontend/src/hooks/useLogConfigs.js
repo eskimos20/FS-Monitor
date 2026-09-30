@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { logConfigAPI } from '../api/axios';
 import { usePolling } from './usePolling';
+import { sortByName } from '../utils/formatters';
 
 export const useLogConfigs = (refreshInterval = null) => {
   const [logConfigs, setLogConfigs] = useState([]);
@@ -11,7 +12,7 @@ export const useLogConfigs = (refreshInterval = null) => {
     try {
       setLoading(true);
       const response = await logConfigAPI.getAll();
-      setLogConfigs(response.data);
+      setLogConfigs(sortByName(response.data));
       setError(null);
     } catch (err) {
       setError(err.message);

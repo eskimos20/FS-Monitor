@@ -4,6 +4,7 @@ import CollapsibleCard from '../CollapsibleCard';
 import EmptyState from '../ui/EmptyState';
 import api from '../../api/axios';
 import { usePolling } from '../../hooks/usePolling';
+import { sortByName } from '../../utils/formatters';
 
 const formatBytes = (bytes) => {
   if (!bytes || bytes <= 0) return '0 B';
@@ -66,7 +67,7 @@ const StorageTable = () => {
     );
   }
 
-  const storageConfigs = Object.values(storageData);
+  const storageConfigs = sortByName(Object.values(storageData), entry => entry.config?.name);
 
   // Get system-wide storage data (cache ID -1)
   const systemStorage = storageData['-1'];

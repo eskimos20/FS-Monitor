@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import api from '../api/axios';
 import { usePolling } from './usePolling';
+import { sortByName } from '../utils/formatters';
 
 const API_URL = '/delete-services';
 
@@ -12,7 +13,7 @@ export const useDeleteServices = (refreshInterval = 60000) => {
   const fetchDeleteServices = useCallback(async () => {
     try {
       const response = await api.get(API_URL);
-      setDeleteServices(response.data);
+      setDeleteServices(sortByName(response.data));
       setError(null);
     } catch (err) {
       console.error('Error fetching delete services:', err);
@@ -27,7 +28,7 @@ export const useDeleteServices = (refreshInterval = 60000) => {
   const createDeleteService = async (data) => {
     try {
       const response = await api.post(API_URL, data);
-      setDeleteServices([...deleteServices, response.data]);
+      setDeleteServices(prev => sortByName([...prev, response.data]));
       return response.data;
     } catch (err) {
       console.error('Error creating delete service:', err);
@@ -38,7 +39,7 @@ export const useDeleteServices = (refreshInterval = 60000) => {
   const updateDeleteService = async (id, data) => {
     try {
       const response = await api.put(`${API_URL}/${id}`, data);
-      setDeleteServices(deleteServices.map(s => s.id === id ? response.data : s));
+      setDeleteServices(prev => sortByName(prev.map(s => s.id === id ? response.data : s)));
       return response.data;
     } catch (err) {
       console.error('Error updating delete service:', err);
@@ -59,7 +60,7 @@ export const useDeleteServices = (refreshInterval = 60000) => {
   const toggleDeleteService = async (id) => {
     try {
       const response = await api.post(`${API_URL}/${id}/toggle`);
-      setDeleteServices(deleteServices.map(s => s.id === id ? response.data : s));
+      setDeleteServices(prev => prev.map(s => s.id === id ? response.data : s));
       return response.data;
     } catch (err) {
       console.error('Error toggling delete service:', err);

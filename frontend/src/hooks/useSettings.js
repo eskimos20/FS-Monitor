@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { integrationAPI, fileTypeAPI, mailConfigAPI, logConfigAPI, appSettingsAPI } from '../api/axios';
 import api from '../api/axios';
+import { sortByName } from '../utils/formatters';
 
 export const useSettings = () => {
   const [integrations, setIntegrations] = useState([]);
@@ -28,12 +29,12 @@ export const useSettings = () => {
         appSettingsAPI.getCurrent().catch(() => ({ data: { refreshIntervalSeconds: 5 } }))
       ]);
 
-      setIntegrations(integrationsRes.data);
-      setFileTypes(fileTypesRes.data);
-      setServices(servicesRes.data);
-      setLogConfigs(logConfigsRes.data);
-      setStorageConfigs(storageConfigsRes.data);
-      setDeleteServices(deleteServicesRes.data);
+      setIntegrations(sortByName(integrationsRes.data));
+      setFileTypes(sortByName(fileTypesRes.data));
+      setServices(sortByName(servicesRes.data));
+      setLogConfigs(sortByName(logConfigsRes.data));
+      setStorageConfigs(sortByName(storageConfigsRes.data));
+      setDeleteServices(sortByName(deleteServicesRes.data));
       setMailConfig(mailConfigRes.data);
       setAppSettings(appSettingsRes.data);
 
