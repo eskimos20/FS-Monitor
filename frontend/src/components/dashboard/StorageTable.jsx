@@ -248,7 +248,7 @@ const StorageTable = () => {
                       </thead>
                       <tbody className="bg-white divide-y divide-surface-100">
                         {info.map((item) => (
-                          <tr key={item.id} className="hover:bg-surface-50 transition-colors">
+                          <tr key={item.path} className="hover:bg-surface-50 transition-colors">
                             <td className="table-td">
                               <div className="flex items-center gap-2">
                                 <Folder className="h-4 w-4 text-primary-500 flex-shrink-0" />
@@ -280,7 +280,7 @@ const StorageTable = () => {
                       </thead>
                       <tbody className="bg-white divide-y divide-surface-100">
                         {largestFiles.slice(0, 10).map((file) => (
-                          <tr key={file.id} className="hover:bg-surface-50 transition-colors">
+                          <tr key={file.filePath} className="hover:bg-surface-50 transition-colors">
                             <td className="table-td">
                               <div className="flex items-center gap-2">
                                 <File className="h-4 w-4 text-surface-400 flex-shrink-0" />

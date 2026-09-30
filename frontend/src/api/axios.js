@@ -74,7 +74,8 @@ export const logConfigAPI = {
   update: (id, data) => api.put(`/log-configs/${id}`, data),
   delete: (id) => api.delete(`/log-configs/${id}`),
   toggle: (id) => api.post(`/log-configs/${id}/toggle`),
-  search: (id) => api.get(`/log-configs/${id}/search`),
+  // The backend grep scan can run up to fsmonitor.command-timeout-seconds (120s default)
+  search: (id) => api.get(`/log-configs/${id}/search`, { timeout: 130000 }),
   getStats: () => api.get('/log-configs/stats'),
   getRecentMatches: (hours = 24) => api.get(`/log-configs/matches/recent?hours=${hours}`),
   getMatchesForConfig: (id) => api.get(`/log-configs/${id}/matches`)

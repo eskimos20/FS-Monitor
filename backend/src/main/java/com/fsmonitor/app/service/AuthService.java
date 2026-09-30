@@ -61,19 +61,22 @@ public class AuthService {
 
     @Transactional
     public User registerUser(SignUpRequest signUpRequest) {
-        if (userRepository.existsByUsername(signUpRequest.getUsername())) {
+        String username = signUpRequest.getUsername().trim();
+        String email = signUpRequest.getEmail().trim();
+
+        if (userRepository.existsByUsername(username)) {
             throw new RuntimeException("Username is already taken!");
         }
 
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
+        if (userRepository.existsByEmail(email)) {
             throw new RuntimeException("Email Address already in use!");
         }
 
         PasswordPolicy.validate(signUpRequest.getPassword());
 
         User user = new User();
-        user.setUsername(signUpRequest.getUsername());
-        user.setEmail(signUpRequest.getEmail());
+        user.setUsername(username);
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
 
         Role userRole = roleRepository.findByName(RoleName.ROLE_USER)

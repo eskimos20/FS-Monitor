@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import api, { logConfigAPI } from '../api/axios';
+import { logConfigAPI } from '../api/axios';
 import { usePolling } from './usePolling';
 
 export const useLogConfigs = (refreshInterval = null) => {

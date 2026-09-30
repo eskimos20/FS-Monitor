@@ -87,6 +87,7 @@ public class ServiceMonitoringService {
                 .map(Service::getId)
                 .collect(Collectors.toSet());
         serviceCacheService.cleanupDeletedConfigs(activeIds);
+        notificationService.pruneServiceFailures(activeIds);
 
         for (Service service : activeServices) {
             try {

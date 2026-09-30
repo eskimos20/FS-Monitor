@@ -57,6 +57,10 @@ fsmonitor:
   sftp:
     # OpenSSH known_hosts file for strict SFTP host key verification
     known-hosts: ${FSMONITOR_SFTP_KNOWNHOSTS:${user.home}/.ssh/known_hosts}
+  alert:
+    # Consecutive failed checks required before a notification is sent.
+    # Prevents single transient blips (e.g. a 5s timeout) from alerting.
+    failure-threshold: ${FS_MONITOR_ALERT_FAILURE_THRESHOLD:3}
   security:
     # Honor X-Forwarded-For for rate limiting; enable only behind a reverse
     # proxy that overwrites/sanitizes the header

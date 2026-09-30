@@ -78,7 +78,11 @@ public class LogConfigController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // Synchronous grep scan that can hold a request thread for up to
+    // fsmonitor.command-timeout-seconds - restricted to admins so regular
+    // users cannot trigger heavy on-demand filesystem scans
     @GetMapping("/{id}/search")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<LogMatch> searchLogs(@PathVariable Long id) {
         return logMonitoringService.searchLogs(id);
     }

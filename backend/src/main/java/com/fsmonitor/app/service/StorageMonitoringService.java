@@ -76,7 +76,7 @@ public class StorageMonitoringService {
 
     private long calculateIntervalMillis(StorageConfig config) {
         Integer configured = config.getCheckIntervalMinutes();
-        int interval = configured != null ? configured : 5;
+        int interval = configured != null && configured > 0 ? configured : 5;
         return switch (config.getIntervalUnit()) {
             case "HOURS" -> interval * 60L * 60 * 1000;
             case "DAYS" -> interval * 24L * 60 * 60 * 1000;
@@ -154,13 +154,11 @@ public class StorageMonitoringService {
     /**
      * Enumerate local filesystems via the NIO FileStore API (replaces parsing
      * of "df -l" output). Bind mounts and subvolume mounts of the same
-     * filesystem are reported once - deduplicated by store name and by
-     * identical space statistics.
+     * filesystem are reported once - deduplicated by store name.
      */
     private List<StorageInfoData> getMountPointInfo() {
         List<StorageInfoData> result = new ArrayList<>();
         Set<String> seenStoreNames = new HashSet<>();
-        Set<List<Long>> seenStoreStats = new HashSet<>();
 
         for (FileStore store : FileSystems.getDefault().getFileStores()) {
             try {
@@ -178,9 +176,11 @@ public class StorageMonitoringService {
                 }
 
                 // Same underlying filesystem mounted at multiple paths
-                // (bind mounts, btrfs subvolumes) - report it once
-                if (!seenStoreNames.add(store.name())
-                        || !seenStoreStats.add(List.of(total, usable, store.getUnallocatedSpace()))) {
+                // (bind mounts, btrfs subvolumes) - report it once.
+                // Deduplicate by store name only: distinct filesystems that
+                // happen to share identical space statistics are different
+                // storage and must both be reported.
+                if (!seenStoreNames.add(store.name())) {
                     continue;
                 }
 

@@ -101,7 +101,10 @@ public class DeleteMonitoringService {
     private CleanupResult performCleanup(DeleteService service, LocalDateTime now) {
         logger.debug("Performing cleanup for service: {}", service.getName());
 
-        Path directory = Paths.get(service.getPath()).normalize().toAbsolutePath();
+        // Resolve symlinks so a configured symlink (e.g. /tmp/link -> /)
+        // cannot bypass the protected-path guard below
+        Path directory = resolveRealPath(
+                Paths.get(service.getPath()).normalize().toAbsolutePath());
 
         if (isProtectedPath(directory)) {
             logger.error("Refusing to run delete service {} on protected path {}", service.getName(), directory);
@@ -176,6 +179,16 @@ public class DeleteMonitoringService {
         }
 
         return result;
+    }
+
+    /** Follows the path to its real target; falls back to the unresolved path
+     *  when it does not exist (the isDirectory check reports that case). */
+    private static Path resolveRealPath(Path path) {
+        try {
+            return path.toRealPath();
+        } catch (IOException e) {
+            return path;
+        }
     }
 
     /** A configured path must not BE a protected directory or a parent of one

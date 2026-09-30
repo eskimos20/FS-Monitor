@@ -113,51 +113,58 @@ public class Service {
         setDefaultPortAndPath();
     }
 
+    /**
+     * Fill in the conventional default port/path for the given type.
+     * Only unset fields are touched - setType() must never clobber values the
+     * caller already supplied (e.g. when Jackson deserializes "port" before
+     * "type" in a request body).
+     */
     private void setDefaultPortAndPath() {
+        if (type == null) {
+            return;
+        }
         switch (type) {
             case WEB:
-                this.port = 80;
-                this.path = "/";
+                if (this.port == null) this.port = 80;
+                if (this.path == null) this.path = "/";
                 break;
             case HTTPS:
-                this.port = 443;
-                this.path = "/";
+                if (this.port == null) this.port = 443;
+                if (this.path == null) this.path = "/";
                 break;
             case FTP:
-                this.port = 21;
+                if (this.port == null) this.port = 21;
                 break;
             case SFTP:
-                this.port = 22;
+            case SSH:
+                if (this.port == null) this.port = 22;
                 break;
             case SMB:
-                this.port = 445;
-                break;
-            case SSH:
-                this.port = 22;
+                if (this.port == null) this.port = 445;
                 break;
             case MYSQL:
-                this.port = 3306;
+                if (this.port == null) this.port = 3306;
                 break;
             case POSTGRESQL:
-                this.port = 5432;
+                if (this.port == null) this.port = 5432;
                 break;
             case MONGODB:
-                this.port = 27017;
+                if (this.port == null) this.port = 27017;
                 break;
             case REDIS:
-                this.port = 6379;
+                if (this.port == null) this.port = 6379;
                 break;
             case MSSQL:
-                this.port = 1433;
+                if (this.port == null) this.port = 1433;
                 break;
             case DNS:
-                this.port = 53;
+                if (this.port == null) this.port = 53;
                 break;
             case LDAP:
-                this.port = 389;
+                if (this.port == null) this.port = 389;
                 break;
             case RDP:
-                this.port = 3389;
+                if (this.port == null) this.port = 3389;
                 break;
             case PING:
                 // No port needed for ping

@@ -48,13 +48,16 @@ public class EmailService {
             // SMTP properties - simple configuration for mail relay without auth
             Properties props = mailSender.getJavaMailProperties();
             
-            // Only enable auth if username is provided
+            // Only enable auth if username is provided. When credentials are
+            // sent, STARTTLS is mandatory and the server certificate is verified
+            // against the JVM truststore - a self-signed relay must have its
+            // certificate imported (e.g. keytool -importcert) rather than
+            // disabling verification and exposing the password to MITM attacks.
             if (config.getUsername() != null && !config.getUsername().trim().isEmpty()) {
                 props.put("mail.smtp.auth", "true");
                 props.put("mail.smtp.starttls.enable", "true");
-                props.put("mail.smtp.starttls.required", "false");
-                props.put("mail.smtp.ssl.trust", "*");
-                props.put("mail.smtp.ssl.checkserveridentity", "false");
+                props.put("mail.smtp.starttls.required", "true");
+                props.put("mail.smtp.ssl.checkserveridentity", "true");
             } else {
                 // No auth - plain SMTP relay (like port 25)
                 props.put("mail.smtp.auth", "false");

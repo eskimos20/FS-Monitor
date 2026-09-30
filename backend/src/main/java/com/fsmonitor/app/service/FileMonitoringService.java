@@ -82,6 +82,7 @@ public class FileMonitoringService {
                 .map(Integration::getId)
                 .collect(Collectors.toSet());
         integrationCacheService.cleanupDeletedConfigs(activeIds);
+        notificationService.pruneIntegrationFailures(activeIds);
 
         for (Integration integration : activeIntegrations) {
             try {
