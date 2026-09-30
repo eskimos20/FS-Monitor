@@ -18,15 +18,24 @@ public class MailConfigService {
     
     @Transactional
     public MailConfig saveMailConfig(MailConfig mailConfig) {
-        // Password is write-only in JSON: when the incoming config omits it,
-        // preserve the currently stored password instead of wiping it.
-        if (mailConfig.getPassword() == null || mailConfig.getPassword().isBlank()) {
-            getCurrentMailConfig().ifPresent(existing ->
-                    mailConfig.setPassword(existing.getPassword()));
-        }
-        // Single config: replace existing
-        mailConfigRepository.deleteAll();
-        return mailConfigRepository.save(mailConfig);
+        // Single config: update the existing row in place. Deleting and
+        // re-inserting an entity that already has an id fails under
+        // GenerationType.IDENTITY (detached entity passed to persist).
+        return getCurrentMailConfig()
+                .map(existing -> {
+                    existing.setHost(mailConfig.getHost());
+                    existing.setPort(mailConfig.getPort());
+                    existing.setFromEmail(mailConfig.getFromEmail());
+                    existing.setToEmail(mailConfig.getToEmail());
+                    existing.setUsername(mailConfig.getUsername());
+                    // Password is write-only in JSON: when the incoming config
+                    // omits it, keep the currently stored password.
+                    if (mailConfig.getPassword() != null && !mailConfig.getPassword().isBlank()) {
+                        existing.setPassword(mailConfig.getPassword());
+                    }
+                    return mailConfigRepository.save(existing);
+                })
+                .orElseGet(() -> mailConfigRepository.save(mailConfig));
     }
     
     @Transactional(readOnly = true)
