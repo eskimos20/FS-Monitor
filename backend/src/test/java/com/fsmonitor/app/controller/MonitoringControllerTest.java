@@ -44,9 +44,11 @@ class MonitoringControllerTest {
         integrationService = mock(IntegrationService.class);
         cacheService = new IntegrationCacheService();
         controller = new MonitoringController(fileMonitoringService, integrationService, cacheService);
-        // Scheduler pass grid: next pass at the next whole minute
+        // Scheduler pass grid anchored 45s ahead - do NOT use "next whole
+        // minute": near a minute boundary that is <1s away and Duration
+        // truncation yields 0, making the assertions timing-flaky.
         when(fileMonitoringService.getNextSchedulerRun())
-                .thenReturn(LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES).plusMinutes(1));
+                .thenReturn(LocalDateTime.now().plusSeconds(45));
     }
 
     @SuppressWarnings("unchecked")
