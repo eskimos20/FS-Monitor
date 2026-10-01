@@ -151,7 +151,7 @@ const DashboardPage = () => {
           <EmptyState
             icon={CheckCircle2}
             title="All systems operational"
-            description="No offline services, unhealthy integrations, storage warnings, overdue cleanups or log matches right now."
+            description="No offline services, unhealthy integrations, storage warnings or log matches right now."
           />
         </div>
       ) : (
