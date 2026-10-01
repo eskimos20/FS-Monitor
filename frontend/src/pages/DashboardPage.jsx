@@ -2,38 +2,30 @@ import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, CheckCircle2, Server, FolderOpen, HardDrive,
-  Trash2, FileSearch, ChevronRight, Loader2
+  FileSearch, ChevronRight, Loader2, Moon
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api, { logConfigAPI } from '../api/axios';
 import { usePolling } from '../hooks/usePolling';
 import { useIntegrations } from '../hooks/useIntegrations';
 import { useServices } from '../hooks/useServices';
-import { useDeleteServices } from '../hooks/useDeleteServices';
 import { useLogConfigs } from '../hooks/useLogConfigs';
+import { useMonitoringStatus } from '../hooks/useMonitoringStatus';
 import { useAppSettings } from '../hooks/useAppSettings';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
 import StatusBadge from '../components/ui/StatusBadge';
-import { isIntegrationHealthy } from '../utils/formatters';
-
-const INTERVAL_MS = {
-  MINUTES: 60 * 1000,
-  HOURS: 60 * 60 * 1000,
-  DAYS: 24 * 60 * 60 * 1000,
-  WEEKS: 7 * 24 * 60 * 60 * 1000,
-  MONTHS: 30 * 24 * 60 * 60 * 1000,
-};
+import { isIntegrationHealthy, formatSchedule } from '../utils/formatters';
 
 const DISK_WARN_PCT = 90;
 
-const ProblemSection = ({ title, count, to, children }) => (
+const ProblemSection = ({ title, count, to, tone = 'danger', children }) => (
   <div className="bg-white border border-surface-200 rounded-xl shadow-card overflow-hidden">
     <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-surface-100">
       <div className="flex items-center gap-2.5 min-w-0">
-        <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
+        <AlertTriangle className={`h-4 w-4 flex-shrink-0 ${tone === 'warning' ? 'text-amber-500' : 'text-red-600'}`} />
         <h3 className="text-sm font-semibold text-surface-900 truncate">{title}</h3>
-        <span className="badge-danger tnum">{count}</span>
+        <span className={`${tone === 'warning' ? 'badge-warning' : 'badge-danger'} tnum`}>{count}</span>
       </div>
       <Link
         to={to}
@@ -64,8 +56,8 @@ const DashboardPage = () => {
   const { refreshIntervalMs } = useAppSettings();
   const { integrations, loading: integrationsLoading } = useIntegrations(refreshIntervalMs);
   const { services, loading: servicesLoading } = useServices(refreshIntervalMs);
-  const { deleteServices, loading: deleteServicesLoading } = useDeleteServices(refreshIntervalMs);
   const { logConfigs } = useLogConfigs(refreshIntervalMs);
+  const { integrationTimers } = useMonitoringStatus(60000, refreshIntervalMs);
   const [storageData, setStorageData] = useState({});
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [matches, setMatches] = useState([]);
@@ -103,6 +95,12 @@ const DashboardPage = () => {
     i.isActive && i.monitoringEnabled &&
     !isIntegrationHealthy(i.isActive, i.lastFileFound, i.thresholdMinutes)
   );
+  // Stale outside the configured window is expected - not a real problem.
+  // Those go to their own section; alert mail is already suppressed there.
+  const problemIntegrations = unhealthyIntegrations.filter(
+    i => !integrationTimers[i.id]?.outsideSchedule);
+  const pausedIntegrations = unhealthyIntegrations.filter(
+    i => integrationTimers[i.id]?.outsideSchedule);
 
   const storageWarnings = [];
   const systemStorage = storageData['-1'];
@@ -121,14 +119,6 @@ const DashboardPage = () => {
     }
   });
 
-  const now = Date.now();
-  const overdueDeletes = deleteServices.filter(d => {
-    if (!d.cleanupEnabled) return false;
-    if (!d.lastCleanup) return true;
-    const intervalMs = (INTERVAL_MS[d.cleanupIntervalUnit] || 0) * (d.cleanupIntervalValue || 0);
-    return intervalMs > 0 && new Date(d.lastCleanup).getTime() + intervalMs < now;
-  });
-
   const matchCountByConfig = {};
   matches.forEach(m => {
     const id = m.logConfig?.id || m.logConfigId;
@@ -139,10 +129,10 @@ const DashboardPage = () => {
     .filter(x => x.count > 0);
 
   const totalProblems =
-    offlineServices.length + unhealthyIntegrations.length +
-    storageWarnings.length + overdueDeletes.length + logIssues.length;
+    offlineServices.length + problemIntegrations.length +
+    storageWarnings.length + logIssues.length;
 
-  const loading = servicesLoading || integrationsLoading || deleteServicesLoading ||
+  const loading = servicesLoading || integrationsLoading ||
     !storageLoaded || !matchesLoaded;
 
   return (
@@ -180,9 +170,9 @@ const DashboardPage = () => {
             </ProblemSection>
           )}
 
-          {unhealthyIntegrations.length > 0 && (
-            <ProblemSection title="File integrations with problems" count={unhealthyIntegrations.length} to="/integrations">
-              {unhealthyIntegrations.map(i => (
+          {problemIntegrations.length > 0 && (
+            <ProblemSection title="File integrations with problems" count={problemIntegrations.length} to="/integrations">
+              {problemIntegrations.map(i => (
                 <ProblemRow
                   key={i.id}
                   icon={FolderOpen}
@@ -200,6 +190,38 @@ const DashboardPage = () => {
             </ProblemSection>
           )}
 
+          {pausedIntegrations.length > 0 && (
+            <ProblemSection
+              title="Outside schedule - monitoring paused for alerts"
+              count={pausedIntegrations.length}
+              to="/integrations"
+              tone="warning"
+            >
+              {pausedIntegrations.map(i => (
+                <ProblemRow
+                  key={i.id}
+                  icon={Moon}
+                  title={i.name}
+                  subtitle={i.path}
+                  detail={
+                    <div className="text-right">
+                      <span className="text-xs text-amber-600 whitespace-nowrap">
+                        {i.lastFileFound
+                          ? `Stale since ${new Date(i.lastFileFound).toLocaleString()}`
+                          : 'No files found'}
+                      </span>
+                      {formatSchedule(i) && (
+                        <p className="text-xs text-surface-400 whitespace-nowrap mt-0.5">
+                          {formatSchedule(i)}
+                        </p>
+                      )}
+                    </div>
+                  }
+                />
+              ))}
+            </ProblemSection>
+          )}
+
           {storageWarnings.length > 0 && (
             <ProblemSection title="Storage warnings" count={storageWarnings.length} to="/storage">
               {storageWarnings.map((w, idx) => (
@@ -208,26 +230,6 @@ const DashboardPage = () => {
                   icon={HardDrive}
                   title={w.label}
                   detail={<StatusBadge variant="danger" label={w.detail} />}
-                />
-              ))}
-            </ProblemSection>
-          )}
-
-          {overdueDeletes.length > 0 && (
-            <ProblemSection title="Delete services overdue" count={overdueDeletes.length} to="/delete-services">
-              {overdueDeletes.map(d => (
-                <ProblemRow
-                  key={d.id}
-                  icon={Trash2}
-                  title={d.name}
-                  subtitle={d.path}
-                  detail={
-                    <span className="text-xs text-red-600 whitespace-nowrap">
-                      {d.lastCleanup
-                        ? `Last ran ${new Date(d.lastCleanup).toLocaleString()}`
-                        : 'Never ran'}
-                    </span>
-                  }
                 />
               ))}
             </ProblemSection>

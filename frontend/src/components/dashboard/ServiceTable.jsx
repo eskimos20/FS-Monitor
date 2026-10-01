@@ -4,25 +4,7 @@ import ExpandableRow from '../ui/ExpandableRow';
 import Toggle from '../ui/Toggle';
 import DetailItem from '../ui/DetailItem';
 import StatusBadge from '../ui/StatusBadge';
-
-const DAY_LABELS = {
-  MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun'
-};
-
-const formatSchedule = (item) => {
-  if (!item.scheduleEnabled) return null;
-
-  let days = 'All days';
-  if (item.activeDays) {
-    const dayList = item.activeDays.split(',').filter(Boolean);
-    if (dayList.length > 0 && dayList.length < 7) {
-      days = dayList.map(d => DAY_LABELS[d] || d).join(', ');
-    }
-  }
-  const startHour = String(item.activeStartHour || 0).padStart(2, '0');
-  const endHour = String(item.activeEndHour || 24).padStart(2, '0');
-  return `${days} · ${startHour}:00–${endHour}:00`;
-};
+import { formatSchedule } from '../../utils/formatters';
 
 const statusVariant = (status) =>
   status === 'ONLINE' ? 'success' : status === 'OFFLINE' ? 'danger' : 'neutral';

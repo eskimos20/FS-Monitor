@@ -97,6 +97,26 @@ export const formatDateTime = (dateString) => {
   return date.toLocaleString();
 };
 
+const DAY_LABELS = {
+  MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun'
+};
+
+/** "Mon, Tue · 08:00–17:00" or null when the schedule is disabled. */
+export const formatSchedule = (item) => {
+  if (!item?.scheduleEnabled) return null;
+
+  let days = 'All days';
+  if (item.activeDays) {
+    const dayList = item.activeDays.split(',').filter(Boolean);
+    if (dayList.length > 0 && dayList.length < 7) {
+      days = dayList.map(d => DAY_LABELS[d] || d).join(', ');
+    }
+  }
+  const startHour = String(item.activeStartHour || 0).padStart(2, '0');
+  const endHour = String(item.activeEndHour || 24).padStart(2, '0');
+  return `${days} · ${startHour}:00–${endHour}:00`;
+};
+
 /** Case-insensitive, number-aware sort by name. Pass a getter for nested names. */
 export const sortByName = (items, getName = (item) => item?.name) =>
   [...(items || [])].sort((a, b) =>

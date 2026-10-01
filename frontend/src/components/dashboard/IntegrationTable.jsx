@@ -1,28 +1,9 @@
 import React, { useState } from 'react';
 import { Clock, Activity, Calendar } from 'lucide-react';
-import { formatCheckInterval, formatIntegrationTimer, formatDateTime, isIntegrationHealthy, getStatusText } from '../../utils/formatters';
+import { formatCheckInterval, formatIntegrationTimer, formatDateTime, formatSchedule, isIntegrationHealthy, getStatusText } from '../../utils/formatters';
 import ExpandableRow from '../ui/ExpandableRow';
 import Toggle from '../ui/Toggle';
 import DetailItem from '../ui/DetailItem';
-
-const DAY_LABELS = {
-  MON: 'Mon', TUE: 'Tue', WED: 'Wed', THU: 'Thu', FRI: 'Fri', SAT: 'Sat', SUN: 'Sun'
-};
-
-const formatSchedule = (item) => {
-  if (!item.scheduleEnabled) return null;
-
-  let days = 'All days';
-  if (item.activeDays) {
-    const dayList = item.activeDays.split(',').filter(Boolean);
-    if (dayList.length > 0 && dayList.length < 7) {
-      days = dayList.map(d => DAY_LABELS[d] || d).join(', ');
-    }
-  }
-  const startHour = String(item.activeStartHour || 0).padStart(2, '0');
-  const endHour = String(item.activeEndHour || 24).padStart(2, '0');
-  return `${days} · ${startHour}:00–${endHour}:00`;
-};
 
 const IntegrationTable = ({ integrations, integrationTimers, onToggle }) => {
   const [expandedItems, setExpandedItems] = useState(() => {
