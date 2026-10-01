@@ -169,6 +169,51 @@ class NotificationServiceTest {
     }
 
     @Test
+    void alertSuppressedOutsideScheduleButFiresInsideWindow() {
+        // Schedule only allows mail on the day after tomorrow -> all suppressed
+        String futureDay = java.time.LocalDate.now().plusDays(2)
+                .getDayOfWeek().name().substring(0, 3);
+        com.fsmonitor.app.entity.Service s = serviceWithId(1);
+        s.setScheduleEnabled(true);
+        s.setActiveDays(futureDay);
+        s.setActiveStartHour(0);
+        s.setActiveEndHour(24);
+
+        for (int i = 0; i < 5; i++) {
+            assertFalse(notificationService.checkAndSendServiceNotification(s));
+        }
+        verify(emailService, never()).sendEmail(anyString(), anyString());
+        assertNotEquals(Boolean.TRUE, s.getNotificationSent());
+
+        // Same service inside an all-day today window -> fires on first check
+        // (failure streak already exceeds the threshold)
+        s.setActiveDays(java.time.LocalDate.now()
+                .getDayOfWeek().name().substring(0, 3));
+        assertTrue(notificationService.checkAndSendServiceNotification(s));
+        verify(emailService).sendEmail(contains("OFFLINE"), anyString());
+    }
+
+    @Test
+    void recoveryOutsideScheduleClearsFlagWithoutEmail() {
+        String futureDay = java.time.LocalDate.now().plusDays(2)
+                .getDayOfWeek().name().substring(0, 3);
+        com.fsmonitor.app.entity.Service s = serviceWithId(1);
+        s.setScheduleEnabled(true);
+        s.setActiveDays(futureDay);
+        s.setActiveStartHour(0);
+        s.setActiveEndHour(24);
+        s.setNotificationSent(true);
+        s.setNotificationSentAt(LocalDateTime.now().minusHours(1));
+
+        notificationService.clearServiceNotification(s);
+
+        verify(emailService, never()).sendEmail(anyString(), anyString());
+        assertFalse(s.getNotificationSent());
+        assertNull(s.getNotificationSentAt());
+        verify(serviceRepository).save(s);
+    }
+
+    @Test
     void pruneRemovesCountersForDeletedEntities() {
         com.fsmonitor.app.entity.Service s = serviceWithId(1);
         notificationService.checkAndSendServiceNotification(s);

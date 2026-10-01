@@ -25,8 +25,6 @@ import java.util.Optional;
 @RequestMapping("/api/monitoring")
 public class MonitoringController {
 
-    private static final long SCHEDULE_SCAN_CAP_MINUTES = 8L * 24 * 60;
-
     private final FileMonitoringService fileMonitoringService;
     private final IntegrationService integrationService;
     private final IntegrationCacheService integrationCacheService;
@@ -121,29 +119,21 @@ public class MonitoringController {
 
     /**
      * Find the first scheduler pass at which a check will actually execute:
-     * the pass must be at-or-after {@code lastCheck + interval} AND inside the
-     * configured schedule (if any). Scans forward pass-by-pass, capped at
-     * {@value #SCHEDULE_SCAN_CAP_MINUTES} minutes - a weekly window always
-     * re-opens within 7 days, so a null result means "no real schedule".
+     * the first pass at-or-after {@code lastCheck + interval}. Checks run
+     * regardless of schedule - the schedule only gates outbound mail, so the
+     * countdown always advances on the normal pass grid.
      */
     private LocalDateTime nextEligiblePass(Integration integration, LocalDateTime lastChecked,
                                            LocalDateTime firstPass, LocalDateTime now) {
         long intervalMin = integration.getCheckIntervalMinutes() != null
                 ? integration.getCheckIntervalMinutes() : 5L;
         LocalDateTime due = lastChecked != null ? lastChecked.plusMinutes(intervalMin) : now;
-        boolean scheduled = Boolean.TRUE.equals(integration.getScheduleEnabled());
 
         LocalDateTime pass = firstPass != null ? firstPass : now.plusSeconds(60);
-        for (long i = 0; i <= SCHEDULE_SCAN_CAP_MINUTES; i++) {
-            if (!pass.isBefore(due)
-                    && (!scheduled || ScheduleUtil.isWithinSchedule(
-                            integration.getActiveDays(), integration.getActiveStartHour(),
-                            integration.getActiveEndHour(), pass))) {
-                return pass;
-            }
+        while (pass.isBefore(due)) {
             pass = pass.plusMinutes(1);
         }
-        return null;
+        return pass;
     }
 
     @PostMapping("/integrations/{id}/check-now")

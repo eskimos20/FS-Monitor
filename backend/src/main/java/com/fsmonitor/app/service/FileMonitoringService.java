@@ -5,7 +5,6 @@ import com.fsmonitor.app.cache.IntegrationCacheService.IntegrationCache;
 import com.fsmonitor.app.entity.FileType;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.repository.IntegrationRepository;
-import com.fsmonitor.app.util.ScheduleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -122,17 +121,9 @@ public class FileMonitoringService {
     public LocalDateTime getNextSchedulerRun() { return nextSchedulerRun; }
 
     private boolean shouldCheckIntegration(Integration integration, LocalDateTime now) {
-        // Check schedule constraints first
-        if (Boolean.TRUE.equals(integration.getScheduleEnabled())) {
-            if (!ScheduleUtil.isWithinSchedule(integration.getActiveDays(),
-                                   integration.getActiveStartHour(),
-                                   integration.getActiveEndHour(),
-                                   now)) {
-                logger.debug("Integration {} is outside scheduled time, skipping", integration.getName());
-                return false;
-            }
-        }
-
+        // Checks run on their interval regardless of schedule - the schedule
+        // only gates outbound notifications (NotificationService), so status
+        // stays accurate at night/weekends while no mail leaves the system.
         IntegrationCache cache = integrationCacheService.getCache(integration.getId());
         LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {

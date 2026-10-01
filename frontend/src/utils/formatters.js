@@ -70,26 +70,14 @@ export const formatIntegrationTimer = (integration, integrationTimers) => {
   const timer = integrationTimers[integration.id];
   if (timer === null || timer === undefined) return 'Loading...';
   const totalSeconds = timer.seconds;
-  if (totalSeconds === 0) return 'Due';
 
-  // Schedule-blocked: the counter does not tick - show when the window re-opens
-  if (timer.outsideSchedule) {
-    const resume = new Date(Date.now() + totalSeconds * 1000);
-    const sameDay = resume.toDateString() === new Date().toDateString();
-    const time = resume.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const when = sameDay
-      ? time
-      : `${resume.toLocaleDateString([], { weekday: 'short' })} ${time}`;
-    return `Outside schedule · resumes ${when}`;
-  }
-  
   // Calculate time units
   const months = Math.floor(totalSeconds / (30 * 24 * 60 * 60));
   const days = Math.floor((totalSeconds % (30 * 24 * 60 * 60)) / (24 * 60 * 60));
   const hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
   const minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
   const seconds = totalSeconds % 60;
-  
+
   // Build formatted string with largest non-zero units
   const parts = [];
   if (months > 0) parts.push(`${months}mo`);
@@ -97,9 +85,10 @@ export const formatIntegrationTimer = (integration, integrationTimers) => {
   if (hours > 0) parts.push(`${hours}h`);
   if (minutes > 0) parts.push(`${minutes}m`);
   if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
-  
-  // Return up to 2 most significant units
-  return parts.slice(0, 2).join(' ');
+
+  const formatted = totalSeconds === 0 ? 'Due' : parts.slice(0, 2).join(' ');
+  // Checks still run outside the schedule - only outbound mail is paused
+  return timer.outsideSchedule ? `${formatted} · alerts paused` : formatted;
 };
 
 export const formatDateTime = (dateString) => {

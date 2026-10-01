@@ -102,34 +102,30 @@ class MonitoringControllerTest {
     }
 
     @Test
-    void scheduleBlockedIntegrationReportsNextWindowNotNextPass() {
-        // Regression test for the reported bug: a schedule-blocked integration
-        // must NOT show a ~60s countdown looping every minute.
+    void scheduleBlockedIntegrationStillCountsDown() {
+        // Checks run regardless of schedule - the schedule only gates mail.
+        // An overdue, schedule-blocked integration counts down to the next pass.
         String futureDay = LocalDate.now().plusDays(2)
                 .getDayOfWeek().name().substring(0, 3); // e.g. "FRI"
         Integration i = buildIntegration(1L);
         i.setScheduleEnabled(true);
-        i.setActiveDays(futureDay);       // only runs the day after tomorrow
+        i.setActiveDays(futureDay);
         i.setActiveStartHour(0);
         i.setActiveEndHour(24);
         cacheService.getCache(1L).setLastCheckedAt(
-                LocalDateTime.now().minusMinutes(30)); // overdue, but blocked
+                LocalDateTime.now().minusMinutes(30)); // overdue
 
         Map<String, Object> timer = timersFor(i);
         long seconds = (Long) timer.get("secondsUntilNextRun");
 
-        // Old behaviour: ~60s. Correct behaviour: seconds until that day 00:00
-        long expected = Duration.between(LocalDateTime.now(),
-                LocalDate.now().plusDays(2).atStartOfDay()).getSeconds();
-        assertTrue(seconds >= expected - 5 && seconds <= expected + 65,
-                "should count down to the next schedule window (~" + expected
-                        + "s), got " + seconds);
+        assertTrue(seconds > 0 && seconds <= 65,
+                "checks run outside schedule too - next pass (~60s), got " + seconds);
         assertEquals(Boolean.TRUE, timer.get("outsideSchedule"),
-                "blocked integration must be flagged so the UI can show pause state");
+                "flag stays so the UI can indicate alerts are paused");
     }
 
     @Test
-    void neverCheckedIntegrationOutsideScheduleWaitsForWindow() {
+    void neverCheckedIntegrationOutsideScheduleRunsOnNextPass() {
         String futureDay = LocalDate.now().plusDays(2)
                 .getDayOfWeek().name().substring(0, 3);
         Integration i = buildIntegration(1L);
@@ -141,8 +137,9 @@ class MonitoringControllerTest {
 
         Map<String, Object> timer = timersFor(i);
         long seconds = (Long) timer.get("secondsUntilNextRun");
-        assertTrue(seconds > 24L * 3600,
-                "never-checked but schedule-blocked must not show next pass, got " + seconds);
+        assertTrue(seconds > 0 && seconds <= 65,
+                "never-checked integration is due immediately - next pass, got " + seconds);
+        assertEquals(Boolean.TRUE, timer.get("outsideSchedule"));
     }
 
     @Test

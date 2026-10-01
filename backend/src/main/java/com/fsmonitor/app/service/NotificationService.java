@@ -3,6 +3,7 @@ package com.fsmonitor.app.service;
 import com.fsmonitor.app.entity.Integration;
 import com.fsmonitor.app.repository.IntegrationRepository;
 import com.fsmonitor.app.repository.ServiceRepository;
+import com.fsmonitor.app.util.ScheduleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -81,6 +82,14 @@ public class NotificationService {
             return false;
         }
 
+        if (!withinNotificationWindow(integration.getScheduleEnabled(), integration.getActiveDays(),
+                integration.getActiveStartHour(), integration.getActiveEndHour())) {
+            logger.info("Integration {} inactive but outside its schedule - no mail sent, "
+                    + "alert fires on the first failing check inside the window",
+                    integration.getName());
+            return false;
+        }
+
         String subject = "FS-Monitor Alert: Integration " + integration.getName() + " is INACTIVE";
         String body = String.format(
             "Integration %s has become inactive.\n\n" +
@@ -120,6 +129,13 @@ public class NotificationService {
             return false;
         }
 
+        if (!withinNotificationWindow(service.getScheduleEnabled(), service.getActiveDays(),
+                service.getActiveStartHour(), service.getActiveEndHour())) {
+            logger.info("Service {} offline but outside its schedule - no mail sent, "
+                    + "alert fires on the first failing check inside the window", service.getName());
+            return false;
+        }
+
         String subject = "FS-Monitor Alert: Service " + service.getName() + " is OFFLINE";
         String body = String.format(
             "Service %s has gone offline.\n\n" +
@@ -149,15 +165,21 @@ public class NotificationService {
     public void clearIntegrationNotification(Integration integration) {
         integrationFailures.remove(integration.getId());
         if (Boolean.TRUE.equals(integration.getNotificationSent())) {
-            sendRecoveryEmail(
-                    "Integration " + integration.getName() + " is ACTIVE again",
-                    integration.getName(),
-                    "active",
-                    integration.getNotificationSentAt());
+            if (withinNotificationWindow(integration.getScheduleEnabled(), integration.getActiveDays(),
+                    integration.getActiveStartHour(), integration.getActiveEndHour())) {
+                sendRecoveryEmail(
+                        "Integration " + integration.getName() + " is ACTIVE again",
+                        integration.getName(),
+                        "active",
+                        integration.getNotificationSentAt());
+            } else {
+                logger.info("Integration {} recovered outside its schedule - no recovery mail sent",
+                        integration.getName());
+            }
             integration.setNotificationSent(false);
             integration.setNotificationSentAt(null);
             integrationRepository.save(integration);
-            logger.info("Cleared integration {} notification - recovery e-mail sent", integration.getName());
+            logger.info("Cleared integration {} notification", integration.getName());
         }
     }
 
@@ -169,16 +191,33 @@ public class NotificationService {
     public void clearServiceNotification(com.fsmonitor.app.entity.Service service) {
         serviceFailures.remove(service.getId());
         if (Boolean.TRUE.equals(service.getNotificationSent())) {
-            sendRecoveryEmail(
-                    "Service " + service.getName() + " is back ONLINE",
-                    service.getName(),
-                    "online",
-                    service.getNotificationSentAt());
+            if (withinNotificationWindow(service.getScheduleEnabled(), service.getActiveDays(),
+                    service.getActiveStartHour(), service.getActiveEndHour())) {
+                sendRecoveryEmail(
+                        "Service " + service.getName() + " is back ONLINE",
+                        service.getName(),
+                        "online",
+                        service.getNotificationSentAt());
+            } else {
+                logger.info("Service {} recovered outside its schedule - no recovery mail sent",
+                        service.getName());
+            }
             service.setNotificationSent(false);
             service.setNotificationSentAt(null);
             serviceRepository.save(service);
-            logger.info("Cleared service {} notification - recovery e-mail sent", service.getName());
+            logger.info("Cleared service {} notification", service.getName());
         }
+    }
+
+    /**
+     * Schedules gate outbound mail, not the checks themselves: a disabled
+     * schedule means mail is always allowed, an enabled one means mail only
+     * leaves while the entity is inside its configured window.
+     */
+    private boolean withinNotificationWindow(Boolean scheduleEnabled, String activeDays,
+                                             Integer startHour, Integer endHour) {
+        return !Boolean.TRUE.equals(scheduleEnabled)
+                || ScheduleUtil.isWithinSchedule(activeDays, startHour, endHour, LocalDateTime.now());
     }
 
     /** Drop failure counters for entities that no longer exist. */

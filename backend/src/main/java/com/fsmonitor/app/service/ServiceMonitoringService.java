@@ -6,7 +6,6 @@ import com.fsmonitor.app.entity.Service;
 import com.fsmonitor.app.entity.ServiceStatus;
 import com.fsmonitor.app.entity.ServiceType;
 import com.fsmonitor.app.repository.ServiceRepository;
-import com.fsmonitor.app.util.ScheduleUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -103,17 +102,9 @@ public class ServiceMonitoringService {
     }
 
     private boolean shouldCheckService(Service service, LocalDateTime now) {
-        // Check schedule constraints first
-        if (Boolean.TRUE.equals(service.getScheduleEnabled())) {
-            if (!ScheduleUtil.isWithinSchedule(service.getActiveDays(),
-                                   service.getActiveStartHour(),
-                                   service.getActiveEndHour(),
-                                   now)) {
-                logger.debug("Service {} is outside scheduled time, skipping", service.getName());
-                return false;
-            }
-        }
-
+        // Checks run on their interval regardless of schedule - the schedule
+        // only gates outbound notifications (NotificationService), so status
+        // stays accurate at night/weekends while no mail leaves the system.
         ServiceCache cache = serviceCacheService.getCache(service.getId());
         LocalDateTime lastCheck = cache.getLastCheckedAt();
         if (lastCheck == null) {
