@@ -182,7 +182,10 @@ const LogConfigForm = ({ logConfig, allLogConfigs, onSave, onCancel }) => {
               onChange={handleChange}
             />
             <p className="mt-1 text-sm text-surface-500">
-              Comma-separated keywords to search for in log files
+              Comma-separated keywords. Prefix with <span className="font-mono">=</span> for whole-word
+              matching: <span className="font-mono">=4001</span> matches <span className="font-mono">" 4001 "</span> but
+              not <span className="font-mono">x4001x</span> or <span className="font-mono">1245354001345</span>.
+              Without the prefix the keyword matches anywhere in the line.
             </p>
           </div>
 

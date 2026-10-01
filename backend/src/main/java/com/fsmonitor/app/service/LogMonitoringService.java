@@ -214,12 +214,43 @@ public class LogMonitoringService {
         return dot >= 0 ? t.substring(dot) : "." + t;
     }
 
+    /** "=4001" requests a whole-word match; anything else is a literal substring. */
+    static boolean isWordKeyword(String kw) {
+        return kw.startsWith("=") && kw.length() > 1;
+    }
+
+    /**
+     * Splits keywords into literal substrings and whole-word patterns and runs
+     * one grep per group ({@code -F} vs {@code -F -w}) - a single invocation
+     * cannot mix the two modes because the last -F/-w flag would apply to all.
+     */
+    private List<LogMatch> grepBatch(List<Path> files, List<String> keywords) {
+        List<String> literals = new ArrayList<>();
+        List<String> words = new ArrayList<>();
+        for (String kw : keywords) {
+            if (isWordKeyword(kw)) {
+                words.add(kw.substring(1));
+            } else {
+                literals.add(kw);
+            }
+        }
+
+        List<LogMatch> matches = new ArrayList<>();
+        matches.addAll(runGrep(files, literals, false, keywords));
+        matches.addAll(runGrep(files, words, true, keywords));
+        return matches;
+    }
+
     /**
      * Runs grep in argv form (no shell): match lines only, NUL-separated filenames.
      * Output format is deterministically {@code file\0lineno:content} so parsing is exact.
      * Context lines are fetched afterwards via {@link #attachContext}.
      */
-    private List<LogMatch> grepBatch(List<Path> files, List<String> keywords) {
+    private List<LogMatch> runGrep(List<Path> files, List<String> patterns,
+                                   boolean wholeWord, List<String> allKeywords) {
+        if (patterns.isEmpty()) {
+            return List.of();
+        }
         List<String> argv = new ArrayList<>();
         argv.add("grep");
         argv.add("-Hn");   // filename + line number
@@ -227,9 +258,12 @@ public class LogMonitoringService {
         argv.add("-F");    // keywords are literal strings, not regexes
         argv.add("-I");    // skip binary files
         argv.add("-Z");    // NUL after filename -> unambiguous parsing
-        for (String kw : keywords) {
+        if (wholeWord) {
+            argv.add("-w"); // word boundaries: " 4001 " matches, "x4001x" does not
+        }
+        for (String p : patterns) {
             argv.add("-e");
-            argv.add(kw);
+            argv.add(p);
         }
         argv.add("--");
         for (Path f : files) {
@@ -250,7 +284,7 @@ public class LogMonitoringService {
 
         List<LogMatch> matches = new ArrayList<>();
         for (String line : result.output()) {
-            LogMatch m = parseGrepLine(line, keywords);
+            LogMatch m = parseGrepLine(line, allKeywords);
             if (m != null) {
                 matches.add(m);
             }
@@ -289,7 +323,14 @@ public class LogMonitoringService {
     private static String detectKeyword(String content, List<String> keywords) {
         String lower = content.toLowerCase();
         for (String kw : keywords) {
-            if (lower.contains(kw.toLowerCase())) {
+            if (isWordKeyword(kw)) {
+                // Mirror grep -w: word chars on both sides disqualify the match
+                Pattern word = Pattern.compile(
+                        "(?i)(?<![A-Za-z0-9_])" + Pattern.quote(kw.substring(1)) + "(?![A-Za-z0-9_])");
+                if (word.matcher(content).find()) {
+                    return kw;
+                }
+            } else if (lower.contains(kw.toLowerCase())) {
                 return kw;
             }
         }
