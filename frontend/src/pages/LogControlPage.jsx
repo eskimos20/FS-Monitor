@@ -6,12 +6,12 @@ import { useAppSettings } from '../hooks/useAppSettings';
 
 const LogControlPage = () => {
   const { refreshIntervalMs } = useAppSettings();
-  const { logConfigs } = useLogConfigs(refreshIntervalMs);
+  const { logConfigs, toggleLogConfig } = useLogConfigs(refreshIntervalMs);
 
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Log Control" subtitle="Log file monitors and keyword matches" />
-      <LogControlTab logConfigs={logConfigs} />
+      <LogControlTab logConfigs={logConfigs} onToggle={toggleLogConfig} />
     </div>
   );
 };

@@ -8,11 +8,12 @@ import EmptyState from '../ui/EmptyState';
 import StatusBadge from '../ui/StatusBadge';
 import DetailItem from '../ui/DetailItem';
 import ExpandableRow from '../ui/ExpandableRow';
+import Toggle from '../ui/Toggle';
 
 const toLines = (value) =>
   Array.isArray(value) ? value.filter(Boolean) : (value || '').split('\n').filter(Boolean);
 
-const LogControlTab = ({ logConfigs }) => {
+const LogControlTab = ({ logConfigs, onToggle }) => {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -122,6 +123,10 @@ const LogControlTab = ({ logConfigs }) => {
                           variant={config.active ? 'success' : 'neutral'}
                           label={config.active ? 'Active' : 'Inactive'}
                           pulse={config.active}
+                        />
+                        <Toggle
+                          checked={config.active}
+                          onChange={() => onToggle(config.id)}
                         />
                       </>
                     }
