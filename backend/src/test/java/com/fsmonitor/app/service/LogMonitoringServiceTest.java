@@ -153,6 +153,33 @@ class LogMonitoringServiceTest {
     }
 
     @Test
+    void gzipOnlyDirectoryNeverInvokesGrepOnStdin() throws IOException {
+        assumeTrue(zgrepAvailable(), "zgrep is required to scan .gz archives");
+        // A directory with ONLY .gz files: the plain-grep batch is empty and
+        // must return immediately - "grep <patterns> --" with no files would
+        // block reading stdin until the 30s command timeout.
+        Path gzDir = Files.createDirectory(tempDir.resolve("gzonly"));
+        Path gz = gzDir.resolve("only.gz");
+        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(gz))) {
+            out.write("hit ZVF123 in archive\n".getBytes(StandardCharsets.UTF_8));
+        }
+
+        LogConfig c = config("ZVF123");
+        c.setPath(gzDir.toString());
+        when(logConfigRepository.findById(1L)).thenReturn(Optional.of(c));
+        when(logConfigRepository.save(any())).thenReturn(c);
+
+        long start = System.nanoTime();
+        List<LogMatch> matches = service.searchLogs(1L);
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+        assertEquals(1, matches.size());
+        assertEquals(gz.toAbsolutePath().toString(), matches.get(0).getFileName());
+        assertTrue(elapsedMs < 20_000,
+                "search must not block on grep stdin; took " + elapsedMs + "ms");
+    }
+
+    @Test
     void gzSuffixStripsForFileTypeMatching() {
         assertTrue(LogMonitoringService.matchesFileType("a.log.gz", List.of(".log")));
         assertTrue(LogMonitoringService.matchesFileType("a.log.gz", List.of("gz")));

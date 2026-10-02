@@ -262,7 +262,8 @@ public class LogMonitoringService {
      */
     private List<LogMatch> runGrep(List<Path> files, List<String> patterns,
                                    boolean wholeWord, List<String> allKeywords) {
-        if (patterns.isEmpty()) {
+        // No file arguments would make grep read stdin forever -> timeout
+        if (files.isEmpty() || patterns.isEmpty()) {
             return List.of();
         }
         List<String> argv = new ArrayList<>();
@@ -333,7 +334,8 @@ public class LogMonitoringService {
 
     private List<LogMatch> runZgrep(List<Path> files, List<String> patterns,
                                     boolean wholeWord, List<String> allKeywords) {
-        if (patterns.isEmpty()) {
+        // No file arguments would make zgrep read stdin forever -> timeout
+        if (files.isEmpty() || patterns.isEmpty()) {
             return List.of();
         }
         List<String> argv = new ArrayList<>();
