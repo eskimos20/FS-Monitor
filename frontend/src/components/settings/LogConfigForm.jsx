@@ -164,7 +164,9 @@ const LogConfigForm = ({ logConfig, allLogConfigs, onSave, onCancel }) => {
               onChange={handleChange}
             />
             <p className="mt-1 text-sm text-surface-500">
-              Comma-separated file extensions (e.g., .log,.txt,.out)
+              Comma-separated file extensions (e.g., .log,.txt,.out).
+              Gzip-compressed logs are searched automatically: <span className="font-mono">.log</span> also
+              matches <span className="font-mono">app.log.gz</span> (scanned with zgrep).
             </p>
           </div>
 

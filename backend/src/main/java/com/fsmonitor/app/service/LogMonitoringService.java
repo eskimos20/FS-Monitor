@@ -25,6 +25,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -155,7 +156,13 @@ public class LogMonitoringService {
 
             for (int i = 0; i < files.size() && matches.size() < MAX_MATCHES; i += FILE_BATCH_SIZE) {
                 List<Path> batch = files.subList(i, Math.min(i + FILE_BATCH_SIZE, files.size()));
-                matches.addAll(grepBatch(batch, keywords));
+                List<Path> plainBatch = new ArrayList<>();
+                List<Path> gzipBatch = new ArrayList<>();
+                for (Path f : batch) {
+                    (isGzipFile(f) ? gzipBatch : plainBatch).add(f);
+                }
+                matches.addAll(grepBatch(plainBatch, keywords));
+                matches.addAll(zgrepBatch(gzipBatch, keywords));
             }
             if (matches.size() > MAX_MATCHES) {
                 matches = new ArrayList<>(matches.subList(0, MAX_MATCHES));
@@ -202,7 +209,10 @@ public class LogMonitoringService {
             return true;
         }
         String lower = fileName.toLowerCase();
-        return fileTypes.stream().map(LogMonitoringService::normalizeExt).anyMatch(lower::endsWith);
+        // "app.log.gz" should match ".log" as well as explicit ".gz"
+        String unzipped = lower.endsWith(".gz") ? lower.substring(0, lower.length() - 3) : lower;
+        return fileTypes.stream().map(LogMonitoringService::normalizeExt)
+                .anyMatch(ext -> lower.endsWith(ext) || unzipped.endsWith(ext));
     }
 
     private static String normalizeExt(String type) {
@@ -217,6 +227,10 @@ public class LogMonitoringService {
     /** "=4001" requests a whole-word match; anything else is a literal substring. */
     static boolean isWordKeyword(String kw) {
         return kw.startsWith("=") && kw.length() > 1;
+    }
+
+    static boolean isGzipFile(Path file) {
+        return file.getFileName().toString().toLowerCase().endsWith(".gz");
     }
 
     /**
@@ -292,6 +306,111 @@ public class LogMonitoringService {
         return matches;
     }
 
+    /**
+     * zgrep equivalent of {@link #grepBatch} for .gz files. zgrep accepts the
+     * same grep flags but does not support -Z, so output is parsed against the
+     * known file list instead ({@code file:lineno:content}).
+     */
+    private List<LogMatch> zgrepBatch(List<Path> files, List<String> keywords) {
+        if (files.isEmpty()) {
+            return List.of();
+        }
+        List<String> literals = new ArrayList<>();
+        List<String> words = new ArrayList<>();
+        for (String kw : keywords) {
+            if (isWordKeyword(kw)) {
+                words.add(kw.substring(1));
+            } else {
+                literals.add(kw);
+            }
+        }
+
+        List<LogMatch> matches = new ArrayList<>();
+        matches.addAll(runZgrep(files, literals, false, keywords));
+        matches.addAll(runZgrep(files, words, true, keywords));
+        return matches;
+    }
+
+    private List<LogMatch> runZgrep(List<Path> files, List<String> patterns,
+                                    boolean wholeWord, List<String> allKeywords) {
+        if (patterns.isEmpty()) {
+            return List.of();
+        }
+        List<String> argv = new ArrayList<>();
+        argv.add("zgrep");
+        argv.add("-Hn");
+        argv.add("-i");
+        argv.add("-F");
+        argv.add("-I");
+        if (wholeWord) {
+            argv.add("-w");
+        }
+        for (String p : patterns) {
+            argv.add("-e");
+            argv.add(p);
+        }
+        argv.add("--");
+        // Longest first so a path that is a prefix of another still resolves correctly
+        List<String> fileNames = files.stream()
+                .map(f -> f.toAbsolutePath().toString())
+                .sorted(Comparator.comparingInt(String::length).reversed())
+                .collect(Collectors.toList());
+        argv.addAll(fileNames);
+
+        ShellCommandUtil.CommandResult result;
+        try {
+            result = ShellCommandUtil.execute(argv, commandTimeout);
+        } catch (IOException e) {
+            logger.warn("zgrep unavailable, skipping {} gzipped files: {}", files.size(), e.getMessage());
+            return List.of();
+        }
+        if (result.exitCode() > 1) {
+            logger.warn("zgrep exited with code {} (some files may be unreadable)", result.exitCode());
+        }
+
+        List<LogMatch> matches = new ArrayList<>();
+        for (String line : result.output()) {
+            LogMatch m = parseZgrepLine(line, fileNames, allKeywords);
+            if (m != null) {
+                matches.add(m);
+            }
+        }
+        return matches;
+    }
+
+    /** Parses {@code file:lineno:content}; the filename is resolved by longest-prefix
+     *  match against the files we passed, so colons in paths cannot corrupt parsing. */
+    static LogMatch parseZgrepLine(String line, List<String> fileNames, List<String> keywords) {
+        for (String file : fileNames) {
+            if (line.length() <= file.length() || !line.startsWith(file)
+                    || line.charAt(file.length()) != ':') {
+                continue;
+            }
+            String rest = line.substring(file.length() + 1);
+            int colon = rest.indexOf(':');
+            if (colon < 1) {
+                return null;
+            }
+            int lineNumber;
+            try {
+                lineNumber = Integer.parseInt(rest.substring(0, colon));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            String content = rest.substring(colon + 1);
+            LogMatch match = new LogMatch();
+            match.setFileName(file);
+            match.setLineNumber(lineNumber);
+            match.setMatchedLine(content);
+            match.setTimestamp(extractTimestamp(content));
+            match.setKeyword(detectKeyword(content, keywords));
+            match.setContextBefore(List.of());
+            match.setContextAfter(List.of());
+            return match;
+        }
+        return null;
+    }
+
     static LogMatch parseGrepLine(String line, List<String> keywords) {
         int nul = line.indexOf('\0');
         if (nul <= 0) {
@@ -364,20 +483,45 @@ public class LogMonitoringService {
         }
 
         Map<Integer, String> lines = new HashMap<>();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
-                Files.newInputStream(file),
-                StandardCharsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPLACE)
-                        .onUnmappableCharacter(CodingErrorAction.REPLACE)))) {
-            String line;
-            int n = 0;
-            while ((line = reader.readLine()) != null) {
-                n++;
+        if (isGzipFile(file)) {
+            // "zgrep -n ''" prints every decompressed line as "lineno:content"
+            ShellCommandUtil.CommandResult result = ShellCommandUtil.execute(
+                    List.of("zgrep", "-n", "", "--", file.toAbsolutePath().toString()),
+                    60);
+            for (String out : result.output()) {
+                int colon = out.indexOf(':');
+                if (colon < 1) {
+                    continue;
+                }
+                int n;
+                try {
+                    n = Integer.parseInt(out.substring(0, colon));
+                } catch (NumberFormatException e) {
+                    continue;
+                }
                 if (n > maxLine) {
                     break;
                 }
                 if (needed.contains(n)) {
-                    lines.put(n, line);
+                    lines.put(n, out.substring(colon + 1));
+                }
+            }
+        } else {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                    Files.newInputStream(file),
+                    StandardCharsets.UTF_8.newDecoder()
+                            .onMalformedInput(CodingErrorAction.REPLACE)
+                            .onUnmappableCharacter(CodingErrorAction.REPLACE)))) {
+                String line;
+                int n = 0;
+                while ((line = reader.readLine()) != null) {
+                    n++;
+                    if (n > maxLine) {
+                        break;
+                    }
+                    if (needed.contains(n)) {
+                        lines.put(n, line);
+                    }
                 }
             }
         }

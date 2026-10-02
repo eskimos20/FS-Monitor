@@ -9,13 +9,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.zip.GZIPOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.*;
 
 class LogMonitoringServiceTest {
@@ -90,5 +95,69 @@ class LogMonitoringServiceTest {
         assertFalse(LogMonitoringService.isWordKeyword("="));
         assertTrue(LogMonitoringService.isWordKeyword("=4001"));
         assertFalse(LogMonitoringService.isWordKeyword("4001"));
+    }
+
+    private Path gzip(String name, String... contentLines) throws IOException {
+        Path gz = tempDir.resolve(name);
+        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(gz))) {
+            out.write((String.join("\n", contentLines) + "\n").getBytes(StandardCharsets.UTF_8));
+        }
+        return gz;
+    }
+
+    private static boolean zgrepAvailable() {
+        String path = System.getenv("PATH");
+        if (path == null) {
+            return false;
+        }
+        for (String dir : path.split(File.pathSeparator)) {
+            if (Files.isExecutable(Path.of(dir, "zgrep"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void gzipFileIsScannedViaZgrep() throws IOException {
+        assumeTrue(zgrepAvailable(), "zgrep is required to scan .gz archives");
+        Path gz = gzip("old.log.gz",
+                "archived failure 4001 first",   // word-matches =4001
+                "compressed x4001x embedded",    // must not word-match
+                "benign trailer line");
+
+        List<LogMatch> matches = search("=4001");
+
+        String gzPath = gz.toAbsolutePath().toString();
+        List<LogMatch> gzMatches = matches.stream()
+                .filter(m -> m.getFileName().equals(gzPath))
+                .toList();
+        assertEquals(1, gzMatches.size(),
+                "only the whole-word line inside the .gz archive may match");
+        LogMatch m = gzMatches.get(0);
+        assertEquals(1, m.getLineNumber());
+        assertTrue(m.getMatchedLine().contains("4001 first"));
+        // context lines are fetched from the decompressed stream via zgrep -n
+        assertTrue(m.getContextAfter().contains("compressed x4001x embedded"));
+        assertTrue(m.getContextAfter().contains("benign trailer line"));
+    }
+
+    @Test
+    void gzipAndPlainFilesAreSearchedTogether() throws IOException {
+        assumeTrue(zgrepAvailable(), "zgrep is required to scan .gz archives");
+        gzip("old.log.gz", "archive hit 4001");
+
+        List<LogMatch> matches = search("=4001");
+        assertEquals(3, matches.size(),
+                "2 plain-file word matches + 1 inside the .gz archive");
+    }
+
+    @Test
+    void gzSuffixStripsForFileTypeMatching() {
+        assertTrue(LogMonitoringService.matchesFileType("a.log.gz", List.of(".log")));
+        assertTrue(LogMonitoringService.matchesFileType("a.log.gz", List.of("gz")));
+        assertTrue(LogMonitoringService.matchesFileType("a.gz", List.of("gz")));
+        assertFalse(LogMonitoringService.matchesFileType("a.log.gz", List.of(".txt")));
+        assertTrue(LogMonitoringService.matchesFileType("a.log.gz", List.of()));
     }
 }
